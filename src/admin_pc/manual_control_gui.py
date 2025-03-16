@@ -8,10 +8,10 @@ from PyQt5.QtGui import QImage, QPixmap, QPainter
 from PyQt5 import uic
 MAX_UDP_SIZE = 65507
 SERVER_IP = '0.0.0.0'
-SERVER_PORT = 5001
-ADMIN_CLIENT_IP = '127.0.0.1'  # Admin Client (7001)
-ADMIN_CLIENT_PORT = 7001
-ui_file_path = "/home/shim/ui/Arrow keys.ui"
+SERVER_PORT = "your port Num"
+ADMIN_CLIENT_IP = 'tcp server IP'  # Admin Client (7001)
+ADMIN_CLIENT_PORT = "your port Num"
+ui_file_path = "/path/to/manual_control_gui.ui"
 form_class, base_class = uic.loadUiType(ui_file_path)
 # TCP 송신용 스레드
 class AdminClientThread(QThread):
