@@ -12,24 +12,16 @@ from manual_control_gui import ManualWindowClass
 
 
 
-
 # Load the UI file
 mainUi = uic.loadUiType("/home/lim/dev_ws/mldl_project/src/hosbot.ui")[0]
 manualUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/manual_control_gui.ui")[0]
 
 
 
-
-
-
-
 # UDP Video Streaming Configuration
 UDP_IP = "127.0.0.1"
-UDP_PORT = 6001
+UDP_PORT = 7001
 BUFFER_SIZE = 65536  # Max UDP packet size
-
-
-
 
 
 
@@ -132,6 +124,7 @@ class MainWindowClass(QMainWindow, mainUi):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.setWindowTitle("Hosbot")
         
         # Set table header to stretch its columns
         self.tableWidget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -146,8 +139,6 @@ class MainWindowClass(QMainWindow, mainUi):
         self.start_date.dateChanged.connect(self.toggle_end_date)
         self.start_date.dateChanged.connect(self.update_end_date_minimum)
         self.manualcontrol_btn.clicked.connect(self.open_manual_control_window)
-
-        self.setWindowTitle("Hosbot")
 
         # Replace the existing QFrame (from UI) with our UDPWebcamFrame
         self.webcam_frame = UDPWebcamFrame(self)
