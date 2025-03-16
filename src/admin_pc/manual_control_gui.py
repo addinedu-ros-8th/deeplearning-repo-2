@@ -13,8 +13,8 @@ from main_gui import MainWindowClass
 
 
 # UI 파일 로드
-manualUi = uic.loadUiType("/home/shim/ui/Arrow keys.ui")[0]
-mainUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/main_gui.ui")[0]
+manualUi = uic.loadUiType("/path/to/manual_control_gui.ui")[0]
+mainUi = uic.loadUiType("/path/to/main_gui.ui")[0]
 
 
 
