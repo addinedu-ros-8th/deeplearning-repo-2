@@ -13,8 +13,8 @@ from manual_control_gui import ManualWindowClass
 
 
 # Load the UI file
-mainUi = uic.loadUiType("/home/lim/dev_ws/mldl_project/src/hosbot.ui")[0]
-manualUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/manual_control_gui.ui")[0]
+mainUi = uic.loadUiType("/path/to/hosbot.ui")[0]
+manualUi = uic.loadUiType("/path/to/manual_control_gui.ui")[0]
 
 
 
