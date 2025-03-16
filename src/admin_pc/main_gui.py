@@ -8,14 +8,30 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QHeaderView
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import QDate, QTimer, Qt
 from PyQt5 import uic
+from manual_control_gui import ManualWindowClass
+
+
+
 
 # Load the UI file
-from_class = uic.loadUiType("/home/lim/dev_ws/mldl_project/src/hosbot.ui")[0]
+mainUi = uic.loadUiType("/home/lim/dev_ws/mldl_project/src/hosbot.ui")[0]
+manualUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/manual_control_gui.ui")[0]
+
+
+
+
+
+
 
 # UDP Video Streaming Configuration
 UDP_IP = "127.0.0.1"
 UDP_PORT = 6001
 BUFFER_SIZE = 65536  # Max UDP packet size
+
+
+
+
+
 
 class UDPWebcamFrame(QFrame):
     """Custom QFrame to receive and display the UDP video stream."""
@@ -35,6 +51,8 @@ class UDPWebcamFrame(QFrame):
         self.timer.start(30)  # Update UI every 30ms
 
         self.latest_frame = None  # Store the latest received frame
+
+
 
     def receive_frames(self):
         """Receives video frames over UDP in a separate thread."""
@@ -75,11 +93,15 @@ class UDPWebcamFrame(QFrame):
             except socket.timeout:
                 pass  # Continue if no data received
 
+
+
     def update_frame(self):
         """Updates the displayed frame from the frame queue."""
         if not self.frame_queue.empty():
             self.latest_frame = self.frame_queue.get()
         self.update()  # Trigger repaint
+
+
 
     def paintEvent(self, event):
         """Override paintEvent to draw the latest received frame."""
@@ -93,13 +115,20 @@ class UDPWebcamFrame(QFrame):
             painter.drawPixmap(0, 0, pixmap)
             painter.end()
 
+
+
     def closeEvent(self, event):
         """Close UDP thread and timer properly."""
         # Optionally, you can add cleanup for the UDP thread if needed.
         self.timer.stop()
         event.accept()
 
-class WindowClass(QMainWindow, from_class):
+
+
+
+
+
+class MainWindowClass(QMainWindow, mainUi):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
@@ -116,6 +145,7 @@ class WindowClass(QMainWindow, from_class):
         # Connect date changed events
         self.start_date.dateChanged.connect(self.toggle_end_date)
         self.start_date.dateChanged.connect(self.update_end_date_minimum)
+        self.manualcontrol_btn.clicked.connect(self.open_manual_control_window)
 
         self.setWindowTitle("Hosbot")
 
@@ -125,9 +155,13 @@ class WindowClass(QMainWindow, from_class):
         self.webcam_frame.setStyleSheet("background-color: black; border: 2px solid gray;")
         self.frame.hide()  # Hide the original placeholder frame
 
+
+
     def update_end_date_minimum(self):
         start_date_value = self.start_date.date()
         self.end_date.setMinimumDate(start_date_value)
+
+
 
     def toggle_end_date(self):
         if self.start_date.date() != QDate(1970, 1, 1):
@@ -135,14 +169,28 @@ class WindowClass(QMainWindow, from_class):
         else:
             self.end_date.setEnabled(False)
 
+
+
     def closeEvent(self, event):
         """Ensure proper cleanup on window close."""
         # Attempt to join the UDP thread with a timeout (if it's still running)
         self.webcam_frame.udp_thread.join(1)
         event.accept()
 
+
+
+    def open_manual_control_window(self):
+        self.manual_control_window = ManualWindowClass()  # manual_control_gui.py의 WindowClass 실행
+        self.manual_control_window.show()  # manual_control_gui.ui를 실행
+        self.close()  # 현재 main 창 닫기
+
+
+
+
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    myWindow = WindowClass()
+    myWindow = MainWindowClass()
     myWindow.show()
     sys.exit(app.exec_())
