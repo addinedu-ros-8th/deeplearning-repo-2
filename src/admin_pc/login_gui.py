@@ -4,8 +4,8 @@ from PyQt5.QtGui import *
 from PyQt5 import uic
 # import mysql.connector
 
-logInUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/login_gui.ui")[0]
-mainUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/main_gui.ui")[0]
+logInUi = uic.loadUiType("/path/to/login_gui.ui")[0]
+mainUi = uic.loadUiType("/path/to/main_gui.ui")[0]
 
 
 
