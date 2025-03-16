@@ -1,5 +1,7 @@
 import sys
 import socket
+import threading
+import queue
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
@@ -115,7 +117,7 @@ class UDPWebcamFrame(QFrame):
 
 
 
-        
+
 class ManualWindowClass(QMainWindow, manualUi):
     def __init__(self):
         super().__init__()
