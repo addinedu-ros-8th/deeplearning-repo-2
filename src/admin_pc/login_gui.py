@@ -10,9 +10,6 @@ mainUi = uic.loadUiType("/path/to/main_gui.ui")[0]
 
 
 
-
-
-
 class LogInWindow(QMainWindow, logInUi):
     def __init__(self):
         super().__init__()
@@ -33,7 +30,7 @@ class LogInWindow(QMainWindow, logInUi):
 
 
     def open_main_window(self):
-        from main_gui import MainWindowClass
+        from main_gui import WindowClass
         # """ MySQL 로그인 검증 후 Main.py 실행 """
         # id = self.lineEdit1.text()
         # passwd = self.lineEdit2.text()
@@ -49,7 +46,7 @@ class LogInWindow(QMainWindow, logInUi):
         # else:
         #     QMessageBox.warning(self, '로그인 실패', '아이디 또는 비밀번호가 틀렸습니다. 확인 후 다시 시도해주세요.')
 
-        self.main_window = MainWindowClass()
+        self.main_window = WindowClass()
         self.main_window.show()
         self.close()
 
