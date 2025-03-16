@@ -5,18 +5,39 @@ import threading
 import numpy as np
 import queue
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QHeaderView
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout, QPushButton, QHeaderView
 from PyQt5.QtGui import QPixmap, QImage, QPainter
-from PyQt5.QtCore import QDate, QTimer, Qt
+from PyQt5.QtCore import QDate, QThread, pyqtSignal
 from PyQt5 import uic
-from udp_receiver import UDPWebcamFrame
+from udp_receiver import WebcamFrame
+
+
+
+
+ADMIN_CLIENT_IP = 'local IP'  # Admin Client (7001)
+ADMIN_CLIENT_PORT = "your port Num"
 
 
 
 
 # Load the UI file
-mainUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/main_gui.ui")[0]
+mainUi = uic.loadUiType("/path/to/main_gui.ui")[0]
 
+
+
+
+# TCP 송신용 스레드
+class AdminClientThread(QThread):
+    def __init__(self, message):
+        super().__init__()
+        self.message = message
+    def run(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((ADMIN_CLIENT_IP, ADMIN_CLIENT_PORT))
+                sock.sendall(self.message.encode())
+        except Exception as e:
+            print(f"Error sending to Admin Client: {e}")
 
 
 
@@ -43,7 +64,7 @@ class MainWindowClass(QMainWindow, mainUi):
         self.manualcontrol_btn.clicked.connect(self.close)
 
         # Replace the existing QFrame (from UI) with our UDPWebcamFrame
-        self.webcam_frame = UDPWebcamFrame(self)
+        self.webcam_frame = WebcamFrame(self)
         self.webcam_frame.setGeometry(self.frame.geometry())  # Match the size and position of the UI frame
         self.webcam_frame.setStyleSheet("background-color: black; border: 2px solid gray;")
         self.frame.hide()  # Hide the original placeholder frame
@@ -63,11 +84,15 @@ class MainWindowClass(QMainWindow, mainUi):
             self.end_date.setEnabled(False)
 
 
+    
+    def update_video_frame(self, qimg):
+        self.video_frame.set_image(qimg)
+
+
 
     def closeEvent(self, event):
-        """Ensure proper cleanup on window close."""
-        # Attempt to join the UDP thread with a timeout (if it's still running)
-        self.webcam_frame.udp_thread.join(1)
+        # """ Close UDP thread properly when exiting """
+        # self.webcam_frame.udp_thread.join(1)  # Stop UDP thread safely
         event.accept()
 
 
