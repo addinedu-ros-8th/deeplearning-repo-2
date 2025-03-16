@@ -3,10 +3,13 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
 import mysql.connector
-from main_gui import WindowClass
+from main_gui import MainWindowClass
 
 logInUi = uic.loadUiType("path/to/login_gui.ui")[0]
 mainUi = uic.loadUiType("path/to/main_gui.ui")[0]
+
+
+
 
 
 
@@ -40,7 +43,7 @@ class LogInWindow(QMainWindow, logInUi):
         result = cursor.fetchone()
 
         if result:
-            self.main_window = WindowClass()  # Main.py의 WindowClass 실행
+            self.main_window = MainWindowClass()  # Main.py의 WindowClass 실행
             self.main_window.show()  # Main.ui를 실행
             self.close()  # 현재 로그인 창 닫기
         else:
