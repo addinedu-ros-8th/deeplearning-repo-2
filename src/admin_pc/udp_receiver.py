@@ -36,17 +36,25 @@ class SharedUDPReceiver:
             self.listeners.append(listener)
 
     def receive_loop(self):
-        packet_buffer = {}
+        buffer = b''  # 패킷을 모아둘 버퍼
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(BUFFER_SIZE)
-                # Process and reassemble frame (same as before) ...
-                # When a full frame is ready:
-                frame = ...  # decoded frame
-                for listener in self.listeners:
-                    listener(frame)
+                
+                if data.startswith(b'FRAME_START'):
+                    buffer = b''  # 새로운 프레임이 시작될 때 버퍼 초기화
+                elif data.startswith(b'FRAME_END'):
+                    np_arr = np.frombuffer(buffer, np.uint8)  # 누적된 데이터 변환
+                    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # 이미지 디코딩
+                    if frame is not None:
+                        for listener in self.listeners:
+                            listener(frame)
+                else:
+                    buffer += data  # 데이터 누적
+
             except Exception as e:
-                print("Error:", e)
+                print("UDP Receive Error:", e)
+
 
 
 class WebcamFrame(QFrame):
