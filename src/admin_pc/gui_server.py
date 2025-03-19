@@ -12,7 +12,7 @@ SERVER_IP = '0.0.0.0'
 SERVER_PORT = 5001
 ADMIN_CLIENT_IP = '127.0.0.1'  # Admin Client (7001)
 ADMIN_CLIENT_PORT = 7001
-ui_file_path = "/home/shim/ui/Arrow keys.ui"
+ui_file_path = "/home/shim/ui/main_gui.ui"
 form_class, base_class = uic.loadUiType(ui_file_path)
 
 # TCP 송신용 스레드
@@ -91,13 +91,15 @@ class WindowClass(QMainWindow, form_class):
         self.video_receiver_thread.new_frame_signal.connect(self.update_video_frame)
         self.video_receiver_thread.start()
 
-        self.pushButton.clicked.connect(lambda: self.send_command("FORWARD"))
-        self.pushButton_3.clicked.connect(lambda: self.send_command("LEFT"))
-        self.pushButton_4.clicked.connect(lambda: self.send_command("RIGHT"))
-        self.pushButton_5.clicked.connect(lambda: self.send_command("BACKWARD"))
-        self.pushButton_6.clicked.connect(lambda: self.send_command("STOP"))
-        self.pushButton_7.clicked.connect(lambda: self.send_command("LEFT_TURN"))
-        self.pushButton_8.clicked.connect(lambda: self.send_command("RIGHT_TURN"))
+        self.pushButton_1.clicked.connect(lambda: self.send_command("FORWARD"))
+        self.pushButton_2.clicked.connect(lambda: self.send_command("BACKWARD"))
+        self.pushButton_3.clicked.connect(lambda: self.send_command("LEFT_TURN"))
+        self.pushButton_4.clicked.connect(lambda: self.send_command("RIGHT_TURN"))
+        self.pushButton_5.clicked.connect(lambda: self.send_command("LEFT_MOVE"))
+        self.pushButton_6.clicked.connect(lambda: self.send_command("RIGHT_MOVE"))
+        self.pushButton_7.clicked.connect(lambda: self.send_command("STOP"))
+        
+        
 
     def update_video_frame(self, qimg):
         self.video_frame.set_image(qimg)
