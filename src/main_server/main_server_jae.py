@@ -1,10 +1,10 @@
 import socket
 
 # Admin Client에서 수신할 포트
-MAIN_SERVER_PORT = 6002
+MAIN_SERVER_PORT = 5001
 # Raspberry Pi로 보낼 포트
-RASPBERRY_PI_IP = "172.29.146.150"  # Raspberry Pi IP 주소
-RASPBERRY_PI_PORT = 6001
+RASPBERRY_PI_IP = "192.168.65.150"  # Raspberry Pi IP 주소
+RASPBERRY_PI_PORT = 5001
 
 def forward_to_raspberry(message):
     """Raspberry Pi로 메시지 전달"""
@@ -46,3 +46,4 @@ def handle_admin_client():
 
 if __name__ == "__main__":
     handle_admin_client()
+
