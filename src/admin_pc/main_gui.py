@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QLabel
 from log_gui import LogGUI
 
@@ -58,6 +58,14 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         super().__init__()
         self.setupUi(self)  # 기존 UI 로드
 
+        self.waiting.setChecked(True)
+
+        # 마우스만 투명하게 만들기 (비활성화 느낌 없음)
+        self.waiting.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.patrol.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.manual.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+
         # 🔥 UI에서 만든 QLabel을 사용해야 함 (새로 만들 필요 없음)
         # 기존 self.video_label = QLabel(self) 제거하고, UI에 있는 QLabel을 그대로 사용
         self.label.setStyleSheet("background-color: black;")  # 배경색 유지
@@ -98,9 +106,33 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
 
     def manual_mode(self):
         print("Manual Mode Activated")
+        self.manual.setChecked(True)
+        
+        # 버튼 비활성화
+        self.manual_btn.setDisabled(True)
+        self.patrol_btn.setDisabled(True)
+
+        # 3초 후에 다시 활성화
+        QTimer.singleShot(3000, self.enable_mode_buttons)
+
 
     def patrol_mode(self):
         print("Patrol Mode Activated")
+        self.patrol.setChecked(True)
+        
+        # 버튼 비활성화
+        self.manual_btn.setDisabled(True)
+        self.patrol_btn.setDisabled(True)
+
+        # 3초 후에 다시 활성화
+        QTimer.singleShot(3000, self.enable_mode_buttons)
+
+    def enable_mode_buttons(self):
+        self.waiting.setChecked(True)
+        self.manual_btn.setEnabled(True)
+        self.patrol_btn.setEnabled(True)
+
+
 
     def show_log(self):
         """로그 창 열기 (MainGUI를 숨겼다가 LogGUI가 닫힐 때 다시 표시)"""
