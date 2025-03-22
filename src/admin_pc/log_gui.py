@@ -5,10 +5,20 @@ from PyQt5 import uic, QtWidgets
 from PyQt5.QtCore import QDate, QTimer, Qt
 import cv2
 from graph_gui import GraphGUI
+from dotenv import load_dotenv
+import os
 
-ui_file = "/path/to/log_gui.ui"  # Load UI file
-graph_gui = "/path/to/graph_gui.ui"
-main_gui = "/path/to/main_gui.ui"
+load_dotenv()
+
+LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
+GRAPH_GUI = os.environ.get("PATH_TO_GRAPH_GUI")
+MAIN_GUI = os.environ.get("PATH_TO_MAIN_GUI")
+
+ui_file = LOG_GUI
+graph_gui = GRAPH_GUI
+main_gui = MAIN_GUI
+
+VIDEO = os.environ.get("VIDEO_PATH")
 
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
@@ -58,7 +68,7 @@ class LogGUI(QtWidgets.QDialog, Ui_Dialog):
 
     def start_video(self):
         """Start playing video on QLabel when button is clicked."""
-        video_path = "/path/to/people_walk.mp4"  # 🔥 Change this to your video file path
+        video_path = VIDEO  # 🔥 Change this to your video file path
         self.cap = cv2.VideoCapture(video_path)
 
         if not self.cap.isOpened():
