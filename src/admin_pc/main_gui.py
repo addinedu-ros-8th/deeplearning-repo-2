@@ -7,16 +7,26 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QLabel
 from log_gui import LogGUI
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+MAIN_GUI = os.environ.get("PATH_TO_MAIN_GUI")
+LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
+
+
+IP = os.environ.get("IP")
+PORT = os.environ.get("SERVER_PORT")
 
 # UDP 설정
-UDP_IP = "0.0.0.0"
-UDP_PORT = 0000 #your port number
+UDP_IP = IP
+UDP_PORT = PORT
 BUFFER_SIZE = 65536  # UDP 패킷 크기
 
 # UI 파일 로드
-ui_file = "/path/to/main_gui.ui"  # 기존 UI 유지
-log_gui = "/path/to/log_gui.ui"
+ui_file = MAIN_GUI
+log_gui = LOG_GUI
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
 class VideoReceiver(QThread):
