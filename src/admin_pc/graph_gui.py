@@ -6,11 +6,19 @@ from PyQt5.QtGui import QPixmap
 from PyQt5 import uic, QtWidgets
 from PyQt5.QtCore import QDate
 from io import BytesIO
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+GRAPH_GUI = os.environ.get("PATH_TO_GRAPH_GUI")
+LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
+MAIN_GUI = os.environ.get("PATH_TO_MAIN_GUI")
 
 # UI 파일 로드
-ui_file = "/path/to/graph_gui.ui"  # 🔥 경로 변경 필요
-log_gui = "/path/to/log_gui.ui"
-main_gui = "/path/to/main_gui.ui"
+ui_file = GRAPH_GUI
+log_gui = LOG_GUI
+main_gui = MAIN_GUI
 
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
