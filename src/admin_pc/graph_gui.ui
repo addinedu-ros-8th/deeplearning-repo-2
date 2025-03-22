@@ -145,7 +145,7 @@
      <enum>QFrame::StyledPanel</enum>
     </property>
     <property name="text">
-     <string>Bar Plot</string>
+     <string/>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
@@ -169,7 +169,7 @@
      <enum>QFrame::StyledPanel</enum>
     </property>
     <property name="text">
-     <string>Line Plot</string>
+     <string/>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
