@@ -4,9 +4,21 @@ from PyQt5.QtGui import *
 from PyQt5 import uic
 import mysql.connector
 from main_gui import MainGUI
+from dotenv import load_dotenv
+import os
 
-logInUi = uic.loadUiType("path/to/login_gui.ui")[0]
-mainUi = uic.loadUiType("path/to/main_gui.ui")[0]
+load_dotenv()
+
+loginGUI = os.environ.get("PATH_TO_LOGIN_GUI")
+mainGUI = os.environ.get("PATH_TO_MAIN_GUI")
+
+HOST = os.environ.get("HOST")
+USER = os.environ.get("USER")
+PASSWD = os.environ.get("PASSWD")
+DB_NAME = os.environ.get("DB_NAME")
+
+logInUi = uic.loadUiType(loginGUI)[0]
+mainUi = uic.loadUiType(mainGUI)[0]
 
 
 
@@ -16,10 +28,10 @@ class LogInWindow(QMainWindow, logInUi):
         super().__init__()
         self.setupUi(self)
         self.remote = mysql.connector.connect(
-            host="ip",
-            user="username",
-            password="password",
-            database="db name"
+            host=HOST,
+            user=USER,
+            password=PASSWD,
+            database=DB_NAME
         )
 
         self.lineEdit1.setEchoMode(QLineEdit.Normal)
