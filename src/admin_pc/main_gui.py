@@ -11,7 +11,7 @@ from log_gui import LogGUI
 
 # UDP 설정
 UDP_IP = "0.0.0.0"
-UDP_PORT = "portNum"
+UDP_PORT = 0000 #your port number
 BUFFER_SIZE = 65536  # UDP 패킷 크기
 
 # UI 파일 로드
