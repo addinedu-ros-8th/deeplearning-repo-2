@@ -2,11 +2,11 @@ import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
-# import mysql.connector
+import mysql.connector
 from main_gui import MainGUI
 
-logInUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/login_gui.ui")[0]
-mainUi = uic.loadUiType("/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/main_gui.ui")[0]
+logInUi = uic.loadUiType("path/to/login_gui.ui")[0]
+mainUi = uic.loadUiType("path/to/main_gui.ui")[0]
 
 
 
@@ -15,12 +15,12 @@ class LogInWindow(QMainWindow, logInUi):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        # self.remote = mysql.connector.connect(
-        #     host="ip",
-        #     user="username",
-        #     password="password",
-        #     database="db name"
-        # )
+        self.remote = mysql.connector.connect(
+            host="ip",
+            user="username",
+            password="password",
+            database="db name"
+        )
 
         self.lineEdit1.setEchoMode(QLineEdit.Normal)
         self.lineEdit2.setEchoMode(QLineEdit.Password)
@@ -31,24 +31,20 @@ class LogInWindow(QMainWindow, logInUi):
 
 
     def open_main_window(self):
-        # """ MySQL 로그인 검증 후 Main.py 실행 """
-        # id = self.lineEdit1.text()
-        # passwd = self.lineEdit2.text()
+        """ MySQL 로그인 검증 후 Main.py 실행 """
+        id = self.lineEdit1.text()
+        passwd = self.lineEdit2.text()
 
-        # cursor = self.remote.cursor()
-        # cursor.execute(f"SELECT * FROM Users WHERE id = %s and passwd = SHA2(%s, 256)", (id, passwd))
-        # result = cursor.fetchone()
+        cursor = self.remote.cursor()
+        cursor.execute(f"SELECT * FROM Users WHERE id = %s and passwd = SHA2(%s, 256)", (id, passwd))
+        result = cursor.fetchone()
 
-        # if result:
-        #     self.main_window = MainGUI()  # Main.py의 WindowClass 실행
-        #     self.main_window.show()  # Main.ui를 실행
-        #     self.close()  # 현재 로그인 창 닫기
-        # else:
-        #     QMessageBox.warning(self, '로그인 실패', '아이디 또는 비밀번호가 틀렸습니다. 확인 후 다시 시도해주세요.')
-        
-        self.main_window = MainGUI()  # Main.py의 WindowClass 실행
-        self.main_window.show()  # Main.ui를 실행
-        self.close()  # 현재 로그인 창 닫기
+        if result:
+            self.main_window = MainGUI()  # Main.py의 WindowClass 실행
+            self.main_window.show()  # Main.ui를 실행
+            self.close()  # 현재 로그인 창 닫기
+        else:
+            QMessageBox.warning(self, '로그인 실패', '아이디 또는 비밀번호가 틀렸습니다. 확인 후 다시 시도해주세요.')
 
 
 
