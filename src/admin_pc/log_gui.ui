@@ -181,7 +181,7 @@
     <string>Graph</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton">
+  <widget class="QPushButton" name="main_btn">
    <property name="geometry">
     <rect>
      <x>930</x>
