@@ -9,6 +9,9 @@ from io import BytesIO
 
 # UI 파일 로드
 ui_file = "/path/to/graph_gui.ui"  # 🔥 경로 변경 필요
+log_gui = "/path/to/log_gui.ui"
+main_gui = "/path/to/main_gui.ui"
+
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
 class GraphGUI(QDialog, Ui_Dialog):
@@ -26,7 +29,8 @@ class GraphGUI(QDialog, Ui_Dialog):
         self.start_date.dateChanged.connect(self.update_end_date_minimum)
 
         # 🔥 버튼 클릭 시 그래프 업데이트
-        self.pushButton.clicked.connect(self.update_graphs)
+        self.main_btn.clicked.connect(self.back_to_main)
+        self.back_btn.clicked.connect(self.back_to_log)
 
         # 초기 그래프 표시
         self.update_graphs()
@@ -96,6 +100,19 @@ class GraphGUI(QDialog, Ui_Dialog):
         
         # 🔥 `line_label` → Line Plot 표시
         self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+    
+    # Change the method like this:
+    def back_to_main(self):
+        from main_gui import MainGUI  # 👈 import here
+        self.main_window = MainGUI()
+        self.main_window.show()
+        self.close()
+
+    def back_to_log(self):
+        from log_gui import LogGUI
+        self.log_window = LogGUI()
+        self.log_window.show()
+        self.close()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
