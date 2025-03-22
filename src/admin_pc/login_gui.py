@@ -5,8 +5,8 @@ from PyQt5 import uic
 import mysql.connector
 from main_gui import MainGUI
 
-logInUi = uic.loadUiType("path/to/login_gui.ui")[0]
-mainUi = uic.loadUiType("path/to/main_gui.ui")[0]
+logInUi = uic.loadUiType("/path/to/login_gui.ui")[0]
+mainUi = uic.loadUiType("/path/to/main_gui.ui")[0]
 
 
 
@@ -45,6 +45,7 @@ class LogInWindow(QMainWindow, logInUi):
             self.close()  # 현재 로그인 창 닫기
         else:
             QMessageBox.warning(self, '로그인 실패', '아이디 또는 비밀번호가 틀렸습니다. 확인 후 다시 시도해주세요.')
+
 
 
 
