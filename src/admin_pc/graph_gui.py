@@ -29,11 +29,11 @@ class GraphGUI(QDialog, Ui_Dialog):
         self.start_date.dateChanged.connect(self.update_end_date_minimum)
 
         # 🔥 버튼 클릭 시 그래프 업데이트
+        self.comboBox.currentTextChanged.connect(self.update_graphs)
+
         self.main_btn.clicked.connect(self.back_to_main)
         self.back_btn.clicked.connect(self.back_to_log)
 
-        # 초기 그래프 표시
-        self.update_graphs()
 
     def update_end_date_minimum(self):
         """start_date가 변경되면 end_date의 최소값을 변경"""
@@ -63,20 +63,28 @@ class GraphGUI(QDialog, Ui_Dialog):
         plt.close(fig)  # 🔥 메모리 누수 방지
         return pixmap
 
-    def generate_line_plot(self):
-        """Matplotlib을 사용하여 선 그래프 생성"""
+    def generate_line_plot(self, mode="default"):
         x = np.linspace(0, 10, 100)
-        y = np.sin(x)
+
+        if mode == "Fight":
+            y = np.sin(x)
+        elif mode == "Fire":
+            y = np.cos(x)
+        elif mode == "Lying":
+            y = np.tan(x)
+            y = np.clip(y, -10, 10)  # 너무 튀는 값 제한
+        else:  # "Select" or anything else
+            y = np.sin(x + np.random.rand())
 
         fig, ax = plt.subplots(figsize=(5, 3))
         ax.plot(x, y, color='red')
 
-        ax.set_title("Line Plot")
+        ax.set_title(f"{mode} Line Plot")
         ax.set_xlabel("X-axis")
         ax.set_ylabel("Y-axis")
 
         pixmap = self.convert_plot_to_pixmap(fig)
-        plt.close(fig)  # 🔥 메모리 누수 방지
+        plt.close(fig)
         return pixmap
 
     def convert_plot_to_pixmap(self, fig):
@@ -91,15 +99,36 @@ class GraphGUI(QDialog, Ui_Dialog):
         return pixmap
 
     def update_graphs(self):
-        """QLabel에 그래프 표시"""
-        bar_pixmap = self.generate_bar_plot()
-        line_pixmap = self.generate_line_plot()
+        selected_option = self.comboBox.currentText()
 
-        # 🔥 `bar_label` → Bar Plot 표시
-        self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
-        
-        # 🔥 `line_label` → Line Plot 표시
-        self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+        if selected_option == "Fight":
+            bar_pixmap = self.generate_bar_plot()
+            line_pixmap = self.generate_line_plot()
+
+            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
+            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+
+        elif selected_option == "Fire":
+            bar_pixmap = self.generate_bar_plot()
+            line_pixmap = self.generate_line_plot()
+
+            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
+            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+
+        elif selected_option == "Lying":
+            bar_pixmap = self.generate_bar_plot()
+            line_pixmap = self.generate_line_plot()
+
+            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
+            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+
+        else:
+            bar_pixmap = self.generate_bar_plot()
+            line_pixmap = self.generate_line_plot()
+
+            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
+            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+
     
     # Change the method like this:
     def back_to_main(self):
