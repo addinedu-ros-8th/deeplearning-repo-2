@@ -6,9 +6,9 @@ from PyQt5.QtCore import QDate, QTimer, Qt
 import cv2
 from graph_gui import GraphGUI
 
-ui_file = "/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/log_gui.ui"  # Load UI file
-graph_gui = "/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/graph_gui.ui"
-main_gui = "/home/lim/dev_ws/deeplearning-repo-2/src/admin_pc/main_gui.ui"
+ui_file = "/path/to/log_gui.ui"  # Load UI file
+graph_gui = "/path/to/graph_gui.ui"
+main_gui = "/path/to/main_gui.ui"
 
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
