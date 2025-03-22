@@ -176,7 +176,7 @@
     </property>
    </widget>
   </widget>
-  <widget class="QPushButton" name="pushButton">
+  <widget class="QPushButton" name="main_btn">
    <property name="geometry">
     <rect>
      <x>920</x>
@@ -189,7 +189,7 @@
     <string>To Main</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="graph_btn">
+  <widget class="QPushButton" name="back_btn">
    <property name="geometry">
     <rect>
      <x>820</x>
