@@ -8,6 +8,8 @@ from graph_gui import GraphGUI
 
 ui_file = "/path/to/log_gui.ui"  # Load UI file
 graph_gui = "/path/to/graph_gui.ui"
+main_gui = "/path/to/main_gui.ui"
+
 Ui_Dialog, _ = uic.loadUiType(ui_file)
 
 class LogGUI(QtWidgets.QDialog, Ui_Dialog):
@@ -37,6 +39,7 @@ class LogGUI(QtWidgets.QDialog, Ui_Dialog):
         self.video_btn.clicked.connect(self.start_video)  # Connect button click to function
 
         self.graph_btn.clicked.connect(self.show_graph)
+        self.main_btn.clicked.connect(self.back_to_main)
 
         # Video attributes
         self.cap = None  # Video capture object
@@ -103,6 +106,14 @@ class LogGUI(QtWidgets.QDialog, Ui_Dialog):
         self.graph_window = GraphGUI()
         self.graph_window.show()  # Main.ui를 실행
         self.close()  # 현재 로그인 창 닫기
+
+    # Change the method like this:
+    def back_to_main(self):
+        from main_gui import MainGUI  # 👈 import here
+        self.main_window = MainGUI()
+        self.main_window.show()
+        self.close()
+
 
     def closeEvent(self, event):
         """창 닫을 때 비디오 종료"""
