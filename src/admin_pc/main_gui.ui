@@ -80,7 +80,7 @@
     </font>
    </property>
    <property name="text">
-    <string>MegaBot</string>
+    <string>PatrolBot</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
