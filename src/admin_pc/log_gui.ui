@@ -149,7 +149,7 @@
     </font>
    </property>
    <property name="text">
-    <string>MegaBot Log</string>
+    <string>Patrol Log</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
