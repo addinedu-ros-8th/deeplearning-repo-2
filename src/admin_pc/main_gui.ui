@@ -96,7 +96,7 @@
     </rect>
    </property>
    <property name="title">
-    <string>GroupBox</string>
+    <string>Mode</string>
    </property>
    <widget class="QRadioButton" name="waiting">
     <property name="geometry">
@@ -135,6 +135,19 @@
     </property>
     <property name="text">
      <string>Manual Mode</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="res_label">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>0</y>
+      <width>281</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Next Reservation : 00h 00m</string>
     </property>
    </widget>
   </widget>
