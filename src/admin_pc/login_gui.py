@@ -12,9 +12,9 @@ load_dotenv()
 loginGUI = os.environ.get("PATH_TO_LOGIN_GUI")
 mainGUI = os.environ.get("PATH_TO_MAIN_GUI")
 
-HOST = os.environ.get("HOST")
-USER = os.environ.get("USER")
-PASSWD = os.environ.get("PASSWD")
+HOST = os.environ.get("MYSQL_HOST")
+USER = os.environ.get("MYSQL_USER")
+PASSWD = os.environ.get("MYSQL_PASSWD")
 DB_NAME = os.environ.get("DB_NAME")
 
 logInUi = uic.loadUiType(loginGUI)[0]
