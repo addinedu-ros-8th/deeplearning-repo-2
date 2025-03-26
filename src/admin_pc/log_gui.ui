@@ -120,17 +120,27 @@
    </row>
    <column>
     <property name="text">
-     <string>ID</string>
+     <string>LOG ID</string>
     </property>
    </column>
    <column>
     <property name="text">
-     <string>EventName</string>
+     <string>ROBOT ID</string>
     </property>
    </column>
    <column>
     <property name="text">
-     <string>TimeStamp</string>
+     <string>LOCATION</string>
+    </property>
+   </column>
+   <column>
+    <property name="text">
+     <string>EVENT ID</string>
+    </property>
+   </column>
+   <column>
+    <property name="text">
+     <string>TIME STAMP</string>
     </property>
    </column>
   </widget>
