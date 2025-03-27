@@ -1,0 +1,8 @@
+*.pyc
+.env
+*.mp4
+*.jpg
+*.txt
+*.json
+
+__pycache__
