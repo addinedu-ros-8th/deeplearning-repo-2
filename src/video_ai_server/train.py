@@ -131,6 +131,7 @@ def train(
         test_ratio=test_ratio
     )
 
+    print(train_dataset.vocab)
     vocab_size = len(train_dataset.vocab)
     print("Vocabulary size:", vocab_size)
 

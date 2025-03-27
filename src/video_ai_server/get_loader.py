@@ -18,7 +18,7 @@ class Vocabulary:
         self.tokenizer = word_tokenize
 
     def __len__(self):
-        return(self.itos)
+        return len(self.itos)
 
     def tokenizer_kor(self, text):
         if not text or pd.isnull(text):
@@ -87,7 +87,7 @@ class ImageCaptionDataset(Dataset):
         for captions in raw_captions:
             caption_list = []
             for caption in captions:
-                tokens = self.vocab.tokenizer_eng(caption)
+                tokens = self.vocab.tokenizer_kor(caption)
                 
                 numericalized = [self.vocab.stoi["<SOS>"]]
                 numericalized += self.vocab.numericalize(caption)
@@ -168,8 +168,8 @@ def get_loader(
 ):
     precomputed_dir = './precomputed/'
     
-    root_folder = "./datasets/pose/images/"
-    captions_path = "./datasets/pose/captions.txt"
+    root_folder = "./datasets/pose/imgCaptions/images/"
+    captions_path = "./datasets/pose/imgCaptions/captions.txt"
     
     img_captions = pd.read_csv(captions_path)
     img_captions = img_captions.groupby("image").agg(list).reset_index()

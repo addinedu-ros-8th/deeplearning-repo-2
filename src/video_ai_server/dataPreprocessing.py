@@ -31,7 +31,7 @@ class DataPreprocessing:
                     file_path = os.path.join(self.output_dir, "images", file_name)
                     cv2.imwrite(file_path, frame)
 
-                    self.captions[file_path] = video_name
+                    self.captions[file_name] = video_name
                     extracted_count += 1
 
                 frame_count += 1
