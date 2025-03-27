@@ -1,11 +1,9 @@
 import os
 import pandas as pd
-import json
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
-import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from nltk.tokenize import word_tokenize
 import string
@@ -170,40 +168,27 @@ def get_loader(
 ):
     precomputed_dir = './precomputed/'
     
-    train_caption_path = './dataset/mscoco/annotations/captions_train2014.json'
-    val_test_caption_path = './dataset/mscoco/annotations/captions_val2014.json'
-    train_root_folder = './dataset/mscoco/train2014/'
-    val_test_root_folder = './dataset/mscoco/val2014/'
+    root_folder = "./datasets/pose/images/"
+    captions_path = "./datasets/pose/captions.txt"
     
-    with open(train_caption_path) as f:
-        train_captions = json.load(f)
-            
-    with open(val_test_caption_path) as f:
-        val_test_captions = json.load(f)
+    img_captions = pd.read_csv(captions_path)
+    img_captions = img_captions.groupby("image").agg(list).reset_index()
     
-    train_img_captions = [{'image': annotation['image_id'], 'caption': annotation['caption']} for annotation in train_captions['annotations']]
-    val_test_img_captions = [{'image': annotation['image_id'], 'caption': annotation['caption']} for annotation in val_test_captions['annotations']]
-    
-    train_img_captions = pd.DataFrame(train_img_captions)
-    val_test_img_captions = pd.DataFrame(val_test_img_captions)
-    
-    train_img_captions['image'] = train_img_captions['image'].apply(lambda x: f"COCO_train2014_{str(x).zfill(12)}.jpg")
-    val_test_img_captions['image'] = val_test_img_captions['image'].apply(lambda x: f"COCO_val2014_{str(x).zfill(12)}.jpg")
-    
-    train_img_captions = train_img_captions.groupby("image").agg(list).reset_index()
-    val_test_img_captions = val_test_img_captions.groupby("image").agg(list).reset_index()
-
-    val_img_captions, test_img_captions = train_test_split(
-        val_test_img_captions, test_size=val_ratio, random_state=seed
+    train_val_img_captions, test_img_captions = train_test_split(
+        img_captions, test_size=test_ratio, random_state=seed
     )
-
+    train_img_captions, val_img_captions = train_test_split(
+        train_val_img_captions, test_size=val_ratio, random_state=seed
+    )
+    
+    #print train, val, test, size
     print("Train size: ", len(train_img_captions))
     print("Val size: ", len(val_img_captions))
     print("Test size: ", len(test_img_captions))
     
-    train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
-    val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
-    test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+    train_dataset = ImageCaptionDataset(root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+    val_dataset = ImageCaptionDataset(root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+    test_dataset = ImageCaptionDataset(root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
 
     
     pad_idx = train_dataset.vocab.stoi["<PAD>"]
