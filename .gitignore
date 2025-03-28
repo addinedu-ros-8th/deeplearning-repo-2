@@ -6,6 +6,6 @@
 *.json
 *.pkl
 *.pt
-*.pt.tar
+*.pth.tar
 
 __pycache__
