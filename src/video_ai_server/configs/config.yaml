@@ -14,9 +14,9 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'yolocnn-attn' # 'cnn-rnn' or 'cnn-attn' or 'vitcnn-attn' or 'vit-attn'
+  model_arch: 'vitcnn-attn' # 'cnn-rnn' or 'cnn-attn' or 'vitcnn-attn'
   dataset: 'imgCaptions' # 'mscoco' or 'flickr'
-  mode: 'image' # 'precomputed' or 'image'
+  mode: 'precomputed' # 'precomputed' or 'image'
   beam_width: 3
 
   # save and load checkpoints
@@ -25,7 +25,7 @@ training:
   save_every: 50
 
 # specify the model hyperparameters
-yolocnn_attn_model:
+vitcnn_attn_model:
   embed_size: 512
   num_layers: 2
   num_heads: 4

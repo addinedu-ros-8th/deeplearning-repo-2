@@ -169,7 +169,7 @@ def get_loader(
     precomputed_dir = './precomputed/'
     
     root_folder = "./datasets/pose/imgCaptions/images/"
-    captions_path = "./datasets/pose/imgCaptions/captions.txt"
+    captions_path = "/home/pepsi/dev_ws/deeplearning-repo-2/src/video_ai_server/datasets/pose/imgCaptions/captions.txt"
     
     img_captions = pd.read_csv(captions_path)
     img_captions = img_captions.groupby("image").agg(list).reset_index()

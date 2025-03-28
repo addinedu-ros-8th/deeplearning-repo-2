@@ -15,7 +15,7 @@ from utils import save_checkpoint, load_checkpoint, transform
 from get_loader import get_loader
 from nlgmetricverse import NLGMetricverse, load_metric
 
-from models.yolocnnattn_model import YOLOCNNAttentionModel
+from models.vitcnnattn_model import VITCNNAttentionModel
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -89,11 +89,11 @@ def precompute_images(
                     
 
 def get_model(model_config, vocab_size, device):
-    yolocnn_embed_size = model_config['yolocnn_embed_size']
-    yolocnn_num_layers = model_config['yolocnn_num_layers']
-    yolocnn_num_heads = model_config['yolocnn_num_heads']
-
-    return YOLOCNNAttentionModel(yolocnn_embed_size, vocab_size, yolocnn_num_heads, yolocnn_num_layers).to(device)
+    vitcnn_embed_size = model_config['vitcnn_embed_size']
+    vitcnn_num_layers = model_config['vitcnn_num_layers']
+    vitcnn_num_heads = model_config['vitcnn_num_heads']
+    
+    return VITCNNAttentionModel(vitcnn_embed_size, vocab_size, vitcnn_num_heads, vitcnn_num_layers).to(device)
 
 def train(
     learning_rate,

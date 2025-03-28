@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Define the models, datasets, and inference types to evaluate
-model_list = ["yolocnn-attn"]
+model_list = ["vitcnn-attn"]
 dataset_list = ["imgCaptions"]
 inference_type_list = ["greedy", "beam"]
 num_epoch_eval = 50

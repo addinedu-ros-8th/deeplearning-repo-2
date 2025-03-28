@@ -221,10 +221,9 @@ if __name__ == "__main__":
     
     print(f"Using checkpoint directory: {checkpoint_dir}")
     model_config = {}
-    model_config['model_arch'] = model_arch
-    model_config['yolocnn_embed_size'] = embed_size
-    model_config['yolocnn_num_layers'] = num_layers
-    model_config['yolocnn_num_heads'] = 4
+    model_config['vitcnn_embed_size'] = embed_size
+    model_config['vitcnn_num_layers'] = num_layers
+    model_config['vitcnn_num_heads'] = 4
     
     saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}_nl{num_layers}"
 
