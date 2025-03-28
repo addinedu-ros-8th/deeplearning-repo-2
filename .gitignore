@@ -7,5 +7,6 @@
 *.pkl
 *.pt
 *.pth.tar
+*.mov
 
 __pycache__
