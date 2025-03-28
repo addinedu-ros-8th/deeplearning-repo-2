@@ -3,13 +3,22 @@ import os
 import glob
 import pandas as pd
 from tqdm import tqdm
+import random
 
 class DataPreprocessing:
-    def __init__(self, video_dir='./datasets/pose/', output_dir='./datasets/pose/imgCaptions/', frame_rate=5):
+    def __init__(self, video_dir='./datasets/pose/', output_dir='./datasets/pose/imgCaptions/', frame_rate=30):
         self.video_dir = video_dir
         self.output_dir = output_dir
         self.frame_rate = frame_rate
         self.captions = {}
+
+        self.caption_templates = {
+            "fighting": "두 사람이 몸싸움을 벌이고 있다.",
+            "normal": "한 사람이 걷고있다.",
+            "lying": "한 사람이 쓰러졌다.",
+            "smoking": "한 사람이 담배를 피우고 있다.",
+        }
+
     def extract_images(self):
         os.makedirs(os.path.join(self.output_dir, "images"), exist_ok=True)
         video_paths = glob.glob(os.path.join(self.video_dir, "*.mp4"))
@@ -18,7 +27,6 @@ class DataPreprocessing:
             cap = cv2.VideoCapture(video_path)
             fps = int(cv2.CAP_PROP_FPS)
 
-            frame_interval = fps // 5
             frame_count = 0
             extracted_count = 0
 
@@ -26,12 +34,12 @@ class DataPreprocessing:
                 ret, frame = cap.read()
                 if not ret:
                     break
-                if frame_count % frame_interval == 0:
+                if frame_count % self.frame_rate == 0:
                     file_name = f"{video_name}_{extracted_count}.jpg"
                     file_path = os.path.join(self.output_dir, "images", file_name)
                     cv2.imwrite(file_path, frame)
 
-                    self.captions[file_name] = video_name
+                    self.captions[file_name] = self.caption_templates[video_name]
                     extracted_count += 1
 
                 frame_count += 1

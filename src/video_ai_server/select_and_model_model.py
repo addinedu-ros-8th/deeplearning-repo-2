@@ -16,34 +16,39 @@ def create_metric_plots(best_model_metrics):
     metric_name_list = ["bleus", "ciders", "meteors", "train_losses"]
     for dataset in best_model_metrics:
         for metric_name in metric_name_list:
-            f, ax = plt.subplots(1, 2, figsize=(15, 5))
-            f, ax2 = plt.subplots(1, 1, figsize=(10, 5))
-            
-            for model in best_model_metrics[dataset]:
-                metrics = best_model_metrics[dataset][model]
-
-                if metric_name == "train_losses":
+            if metric_name == "train_losses":
+                # Train Losses 플롯
+                fig_train, ax2 = plt.subplots(1, 1, figsize=(10, 5))
+                for model in best_model_metrics[dataset]:
+                    metrics = best_model_metrics[dataset][model]
                     ax2.plot(metrics["train_losses"], label=model)
                     ax2.set_title(f"Train Loss for {dataset}")
                     ax2.set_xlabel("Epoch")
                     ax2.legend()
-                else:
+                fig_train.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
+                plt.close(fig_train)  # 메모리 누수 방지
+            else:
+                # BLEU, CIDEr, METEOR 플롯
+                fig_val, ax = plt.subplots(1, 2, figsize=(15, 5))
+                for model in best_model_metrics[dataset]:
+                    metrics = best_model_metrics[dataset][model]
                     for i, inference_type in enumerate(inference_type_list):
-                        # Generate x-tick labels as multiples of 5, but use normal indexing for plotting
-                        x_indices = list(range(len(metrics[f"val_{inference_type}_{metric_name}"])))
-                        x_labels = [(i + 1) * 5 for i in x_indices]
+                        key = f"val_{inference_type}_{metric_name}"
+                        if key in metrics:  # 데이터 존재 여부 확인
+                            x_indices = list(range(len(metrics[key])))
+                            x_labels = [(i + 1) * 5 for i in x_indices]
+                            ax[i].plot(x_indices, metrics[key], label=model)
+                            ax[i].set_title(f"{inference_type} {metric_name.upper()} for {dataset}")
+                            ax[i].set_xlabel("Epoch")
+                            ax[i].legend()
+                            ax[i].set_xticks(x_indices)
+                            ax[i].set_xticklabels(x_labels)
+                        else:
+                            print(f"Warning: {key} not found in metrics for {model}, {dataset}")
+                fig_val.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
+                plt.close(fig_val)  # 메모리 누수 방지
 
-                        ax[i].plot(x_indices, metrics[f"val_{inference_type}_{metric_name}"], label=model)
-                        ax[i].set_title(f"{inference_type} {metric_name.upper()} for {dataset}")
-                        ax[i].set_xlabel("Epoch")
-                        
-                        ax[i].legend()
-                        ax[i].set_xticks(x_indices)
-                        ax[i].set_xticklabels(x_labels)  
-            
-            # save the dataset plot
-            Path(f"./eval/metric_plots/").mkdir(parents=True, exist_ok=True)
-            plt.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
+    print("All metric plots saved successfully.")
 
 def select_n_samples(n, model, dataset):
     with open("./eval/captions.json", 'r') as json_file:
@@ -54,7 +59,12 @@ def select_n_samples(n, model, dataset):
     first_trained_model = list(all_captions[first_model][first_dataset].keys())[0]
     img_ids = all_captions[first_model][first_dataset][first_trained_model].keys()
     
-    n_sample_img_ids = np.random.choice(list(img_ids), n, replace=False)
+    # 사용 가능한 샘플 수와 n 비교
+    available_samples = len(img_ids)
+    n_adjusted = min(n, available_samples)  # n을 최대 사용 가능 수로 제한
+    print(f"Requested {n} samples, but only {available_samples} available. Using {n_adjusted} samples.")
+    
+    n_sample_img_ids = np.random.choice(list(img_ids), n_adjusted, replace=False)
     n_sample_captions = {} 
     
     for img_id in n_sample_img_ids:
@@ -67,7 +77,7 @@ def select_n_samples(n, model, dataset):
                     trained_model = list(all_captions[model][dataset].keys())[0]
                     n_sample_captions[img_id][dataset][inference_type][model] = all_captions[model][dataset][trained_model][img_id][inference_type]
                 
-    with open(f"./eval/{n}_sample_captions.json", 'w') as json_file:
+    with open(f"./eval/{n_adjusted}_sample_captions.json", 'w') as json_file:
         json.dump(n_sample_captions, json_file, indent=4)
 
 if __name__ == "__main__":
