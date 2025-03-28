@@ -4,5 +4,8 @@
 *.jpg
 *.txt
 *.json
+*.pkl
+*.pt
+*.pt.tar
 
 __pycache__
