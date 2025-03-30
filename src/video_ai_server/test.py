@@ -99,8 +99,7 @@ def test(
             caption = generated_captions[0]
             print(f"Predicted: {caption}")
 
-            # "걷고"가 없는 경우에 녹화 시작
-            if "걷고" not in caption:
+            if "정상" not in caption:
                 if not rec_flag:
                     print("Recording started (not walking detected)...")
                     rec_flag = True
@@ -119,12 +118,10 @@ def test(
                 # 일반 프레임 저장
                 out.write(frame)
             else:
-                if rec_flag:
-                    print("Continuing recording in the same file (walking detected)...")
-                    # "걷고"가 감지되어도 같은 파일에 일반 프레임 저장
-                    out.write(frame)
+                print("Continuing recording in the same file (walking detected)...")
+                rec_flag = False
 
-        cv2.imshow('frame', command_frame if "걷고" not in caption else frame)
+        cv2.imshow('frame', command_frame if "정상" not in caption else frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

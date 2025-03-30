@@ -13,11 +13,13 @@ num_epoch_eval = 50
 n = 10
 
 def create_metric_plots(best_model_metrics):
+    # 디렉토리가 없으면 생성
+    os.makedirs("./eval/metric_plots", exist_ok=True)
+
     metric_name_list = ["bleus", "ciders", "meteors", "train_losses"]
     for dataset in best_model_metrics:
         for metric_name in metric_name_list:
             if metric_name == "train_losses":
-                # Train Losses 플롯
                 fig_train, ax2 = plt.subplots(1, 1, figsize=(10, 5))
                 for model in best_model_metrics[dataset]:
                     metrics = best_model_metrics[dataset][model]
@@ -26,15 +28,14 @@ def create_metric_plots(best_model_metrics):
                     ax2.set_xlabel("Epoch")
                     ax2.legend()
                 fig_train.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
-                plt.close(fig_train)  # 메모리 누수 방지
+                plt.close(fig_train)
             else:
-                # BLEU, CIDEr, METEOR 플롯
                 fig_val, ax = plt.subplots(1, 2, figsize=(15, 5))
                 for model in best_model_metrics[dataset]:
                     metrics = best_model_metrics[dataset][model]
                     for i, inference_type in enumerate(inference_type_list):
                         key = f"val_{inference_type}_{metric_name}"
-                        if key in metrics:  # 데이터 존재 여부 확인
+                        if key in metrics:
                             x_indices = list(range(len(metrics[key])))
                             x_labels = [(i + 1) * 5 for i in x_indices]
                             ax[i].plot(x_indices, metrics[key], label=model)
@@ -46,7 +47,7 @@ def create_metric_plots(best_model_metrics):
                         else:
                             print(f"Warning: {key} not found in metrics for {model}, {dataset}")
                 fig_val.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
-                plt.close(fig_val)  # 메모리 누수 방지
+                plt.close(fig_val)
 
     print("All metric plots saved successfully.")
 
