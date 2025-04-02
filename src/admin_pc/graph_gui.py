@@ -73,7 +73,8 @@ class GraphGUI(QDialog, Ui_Dialog):
         event_id_map = {
             "Fight": 1,
             "Fire": 2,
-            "Lying": 3
+            "Lying": 3,
+            "Smoking": 4
         }
 
         start_str = start_date_qdate.toString("yyyy-MM-dd")
@@ -84,11 +85,12 @@ class GraphGUI(QDialog, Ui_Dialog):
         date_labels = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
 
         fig, ax = plt.subplots(figsize=(7, 4))
+        cursor = self.remote.cursor()
 
         if mode == "Select":
-            cursor = self.remote.cursor()
             width = 0.2
             x = np.arange(len(date_labels))
+            max_y = 0
 
             for idx, (event_name, event_id) in enumerate(event_id_map.items()):
                 query = """
@@ -101,12 +103,13 @@ class GraphGUI(QDialog, Ui_Dialog):
                 result = cursor.fetchall()
                 count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
                 counts = [count_dict.get(day, 0) for day in date_labels]
+                max_y = max(max_y, max(counts))
 
                 ax.bar(x + width * idx, counts, width=width, label=event_name)
 
             ax.set_xticks(x + width)
             ax.set_xticklabels(date_labels, rotation=45)
-
+            ax.set_yticks(np.arange(0, max_y + 2, 1))  # Y축 1단위 눈금
             ax.set_title("All Events - Daily Count")
             ax.set_xlabel("Date")
             ax.set_ylabel("Count")
@@ -117,7 +120,6 @@ class GraphGUI(QDialog, Ui_Dialog):
             if event_id is None:
                 return QPixmap()
 
-            cursor = self.remote.cursor()
             query = """
                 SELECT DATE(createDate) as date, COUNT(*) as count
                 FROM Event_Log
@@ -128,8 +130,10 @@ class GraphGUI(QDialog, Ui_Dialog):
             result = cursor.fetchall()
             count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
             counts = [count_dict.get(day, 0) for day in date_labels]
+            max_y = max(counts) if counts else 1
 
             ax.bar(date_labels, counts, color='skyblue')
+            ax.set_yticks(np.arange(0, max_y + 2, 1))  # Y축 1단위 눈금
             ax.set_title(f"{mode} - Daily Count")
             ax.set_xlabel("Date")
             ax.set_ylabel("Count")
@@ -139,11 +143,13 @@ class GraphGUI(QDialog, Ui_Dialog):
         plt.close(fig)
         return pixmap
 
+
     def generate_line_plot(self, mode="default", start_date_qdate=None, end_date_qdate=None):
         event_id_map = {
             "Fight": 1,
             "Fire": 2,
-            "Lying": 3
+            "Lying": 3,
+            "Smoking": 4
         }
 
         if start_date_qdate is None or end_date_qdate is None:
@@ -160,6 +166,7 @@ class GraphGUI(QDialog, Ui_Dialog):
         cursor = self.remote.cursor()
 
         if mode == "Select":
+            max_y = 0
             for event_name, event_id in event_id_map.items():
                 query = """
                     SELECT DATE(createDate) as date, COUNT(*) as count
@@ -171,9 +178,11 @@ class GraphGUI(QDialog, Ui_Dialog):
                 result = cursor.fetchall()
                 count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
                 counts = [count_dict.get(day, 0) for day in date_labels]
+                max_y = max(max_y, max(counts))
 
                 ax.plot(date_labels, counts, marker='o', linestyle='-', label=event_name)
 
+            ax.set_yticks(np.arange(0, max_y + 2, 1))
             ax.set_title("All Events - Line Graph")
             ax.set_xlabel("Date")
             ax.set_ylabel("Count")
@@ -195,8 +204,10 @@ class GraphGUI(QDialog, Ui_Dialog):
             result = cursor.fetchall()
             count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
             counts = [count_dict.get(day, 0) for day in date_labels]
+            max_y = max(counts) if counts else 1
 
             ax.plot(date_labels, counts, color='red', marker='o', linestyle='-')
+            ax.set_yticks(np.arange(0, max_y + 2, 1))
             ax.set_title(f"{mode} - Trend")
             ax.set_xlabel("Date")
             ax.set_ylabel("Count")
@@ -205,6 +216,7 @@ class GraphGUI(QDialog, Ui_Dialog):
         pixmap = self.convert_plot_to_pixmap(fig)
         plt.close(fig)
         return pixmap
+
 
     def convert_plot_to_pixmap(self, fig):
         """Convert Matplotlib Figure to QPixmap"""
