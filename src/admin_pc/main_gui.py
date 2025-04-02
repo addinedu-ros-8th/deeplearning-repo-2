@@ -33,9 +33,6 @@ DB_NAME = os.environ.get("DB_NAME")
 TCP_IP = '192.168.28.150'
 TCP_PORT = 6001
 
-recognizer = sr.Recognizer()
-mic = sr.Microphone()
-
 trigger_word = "패트롤"
 listening = False 
 
@@ -89,64 +86,64 @@ class VideoReceiver(QThread):
         self.sock.close()
 
 class CommandSender(QThread):
+    tts_speak_signal = pyqtSignal(str) 
 
     def __init__(self):
         super().__init__()
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.settimeout(1.0)
+        self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.tcp_sock.settimeout(1.0)
         try:
-            self.sock.connect((TCP_IP, TCP_PORT))
+            self.tcp_sock.connect((TCP_IP, TCP_PORT))
             print(f"TCP 연결 성공: {TCP_IP}:{TCP_PORT}")
         except socket.error as e:
             print(f"TCP 연결 실패: {e}")
-            self.sock = None
+            self.tcp_sock = None
 
         self.running = True
-
-    def speak(text):
-        tts_engine.say(text)
-        tts_engine.runAndWait()
+        self.listening = False
+        self.recognizer = sr.Recognizer()
+        self.mic = sr.Microphone()
 
     def run(self):
         while self.running:
-            with mic as source:
+            with self.mic as source:
                 print("음성을 듣는 중...")
-                recognizer.adjust_for_ambient_noise(source)
-                audio = recognizer.listen(source)
+                self.recognizer.adjust_for_ambient_noise(source)
+                audio = self.recognizer.listen(source)
 
             try:
-                text = recognizer.recognize_google(audio, language="ko-KR")  # 한국어 설정
+                text = self.recognizer.recognize_google(audio, language="ko-KR")
                 print(f"인식된 단어: {text}")
 
-                if trigger_word == text and not listening:
+                if trigger_word == text and not self.listening:
                     print(f"'{trigger_word}' 감지됨! 다음 음성을 명령으로 인식합니다.")
-                    self.speak("네")
-                    listening = True 
+                    self.tts_speak_signal.emit("네")
+                    self.listening = True 
                     continue 
 
-                if listening:
+                if self.listening:
                     print(f"명령어 전송: {text}")
                     if text in command_dict:
                         command = command_dict[text]
                         print(f"명령어 전송: {command}")
-                        self.sock.sendall(command.encode('utf-8'))
+                        self.tcp_sock.sendall(command.encode('utf-8'))
                         print(f"명령어 '{command}' 전송 완료.")
                     else:
                         print(f"알 수 없는 명령어: '{text}'")
-                        self.speak("알 수 없는 명령어입니다.")
-                    listening = False
+                        self.tts_speak_signal.emit("알 수 없는 명령어")
+                    self.listening = False
 
             except sr.UnknownValueError:
                 print("음성을 인식할 수 없습니다.")
-            except sr.RequestError:
-                print("음성 인식 서비스 오류 발생.")
+            except sr.RequestError as e:
+                print(f"음성 인식 서비스 오류 발생: {e}")
 
     def stop(self):
         self.running = False
         self.quit()
         self.wait()
-        self.sock.close()
+        self.tcp_sock.close()
 
 
 class MainGUI(QtWidgets.QDialog, Ui_Dialog):
@@ -186,8 +183,11 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.last_triggered_time = None  # ⛑️ 마지막으로 실행된 예약 시간
 
         self.command_thread = CommandSender()
-        self.command_thread.start()
+        self.command_thread.tts_speak_signal.connect(self.handle_tts_speak)
 
+    def handle_tts_speak(self, text):
+        tts_engine.say(text)
+        tts_engine.runAndWait()
 
     def check_reservation(self):
         try:
@@ -276,14 +276,21 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         print("Manual Mode Activated")
         self.manual.setChecked(True)
         self.manual_btn.setDisabled(True)
-        self.patrol_btn.setDisabled(True)
-        self.command_thread.run()
+        self.patrol_btn.setDisabled(False)
+
+        if not self.command_thread.isRunning():
+            self.command_thread.start()
+
 
     def patrol_mode(self):
         print("Patrol Mode Activated")
-        self.command_thread.stop()
+        if self.command_thread.isRunning():
+            self.command_thread.stop()
+            self.command_thread = CommandSender()
+            self.command_thread.tts_speak_signal.connect(self.handle_tts_speak)
+            
         self.patrol.setChecked(True)
-        self.manual_btn.setDisabled(True)
+        self.manual_btn.setDisabled(False)
         self.patrol_btn.setDisabled(True)
         QTimer.singleShot(3000, self.enable_mode_buttons)
 
