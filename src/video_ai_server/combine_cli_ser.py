@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import os
 from ultralytics import YOLO
+import time
 
 
 ############################################
@@ -15,6 +16,8 @@ UDP_PORT2 = 7000   # 두 번째 카메라 포트 (오른쪽)
 MAX_PACKET_SIZE = 60000
 SERVER_HOST = '192.168.28.150'  # 명령 보낼 ip (메인서버쪽)
 SERVER_PORT = 6001              # 명령 보낼 포트 (메인서버쪽)
+
+
 FORWARD_PORT = 5000  # Forward video data to admin GUI's port
 FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
 
@@ -25,6 +28,7 @@ FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
 buffers = {"CAM1": {}, "CAM2": {}}
 frames = {"CAM1": None, "CAM2": None}
 lock = threading.Lock()
+emergency_mode = False
 
 
 ############################################
@@ -54,6 +58,14 @@ def receive_video(udp_port, cam_id):
 
 
 ############################################
+# 행동분석 함수
+############################################
+def motionPrediction():
+    # 예: "fall_detected", "fire_detected", "normal"
+    return "fall_detected"
+
+
+############################################
 # depth 계산
 ############################################
 def compute_depth_physical(disparity, focal_length_px, baseline):
@@ -78,8 +90,8 @@ def calibrate_stereo():
     # 캘리브레이션 매개변수 추출
     print('Starting calibration...')
     for i in range(0, 67):
-        ChessImaR = cv2.imread(f'../chessboard-R{i}.png', 0)
-        ChessImaL = cv2.imread(f'../chessboard-L{i}.png', 0)
+        ChessImaR = cv2.imread(f'../cail_data/chessboard-R{i}.png', 0)
+        ChessImaL = cv2.imread(f'../cail_data/chessboard-L{i}.png', 0)
         if ChessImaR is None or ChessImaL is None:
             continue
         retR, cornersR = cv2.findChessboardCorners(ChessImaR, (9,6), None)
@@ -119,13 +131,45 @@ def load_calibration():
                                            'focal_length_px', 'baseline_m'])
     else:
         print('Calibration file not found. Performing calibration...')
-        return calibrate_stereo()\disp_map
+        return calibrate_stereo()
+
+
+############################################
+# 비상 처리
+############################################
+def handle_emergency(client_socket, stop_action, prev_action):
+    global emergency_mode
+    emergency_mode = True
+    client_socket.send(stop_action.encode('utf-8'))
+    print("emergency STOP")
+    print("녹화시작")
+
+    p_predict = motionPrediction()
+    while True:
+        c_predict = motionPrediction()
+        if p_predict != c_predict:
+            print("녹화종료")
+            break
+        time.sleep(1)
+
+    if prev_action is None:
+        client_socket.send(b"FORWARD")
+    else:
+        client_socket.send(prev_action.encode('utf-8'))
+    
+    emergency_mode = False
 
 
 ############################################
 # 뎁스 추정 및 명령 생성
 ############################################
 def start_depth_action():
+    # 서버 소켓 설정 (to main server)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("서버 연결 대기중")
+    client_socket.connect((SERVER_HOST, SERVER_PORT))
+    print(f"서버 {SERVER_HOST}:{SERVER_PORT}에 연결완료")
+
     calib_data = load_calibration()
     mtxL, distL, mtxR, distR, R, T, RL, RR, PL, PR, Left_Stereo_Map0, Left_Stereo_Map1, Right_Stereo_Map0, Right_Stereo_Map1, focal_length_px, baseline_m = calib_data
     Left_Stereo_Map = (Left_Stereo_Map0, Left_Stereo_Map1)
@@ -133,9 +177,15 @@ def start_depth_action():
 
     # 스테레오 매칭 설정
     window_size, min_disp, num_disp = 5, 2, 128
-    stereo = cv2.StereoSGBM_create(minDisparity = min_disp, numDisparities = num_disp, blockSize = window_size,
-                                    uniquenessRatio = 10, speckleWindowSize = 100, speckleRange = 32, disp12MaxDiff = 5,
-                                    P1 = 8 * 3 * window_size**2, P2 = 32 * 3 * window_size**2)
+    stereo = cv2.StereoSGBM_create(minDisparity = min_disp, 
+                                    numDisparities = num_disp, 
+                                    blockSize = window_size,
+                                    uniquenessRatio = 10, 
+                                    speckleWindowSize = 100, 
+                                    speckleRange = 32, 
+                                    disp12MaxDiff = 5,
+                                    P1 = 8 * 3 * window_size ** 2, 
+                                    P2 = 32 * 3 * window_size ** 2)
     stereoR = cv2.ximgproc.createRightMatcher(stereo)
 
     # wls 필터 적용 
@@ -144,7 +194,7 @@ def start_depth_action():
     wls_filter.setSigmaColor(1.8)
 
     # YOLO 모델 로드(사람 + 소화기 + 불)
-    model = YOLO('../model/fire_best.pt')
+    model = YOLO('../model/merge_best.pt')
 
     # 스레드 시작
     thread1 = threading.Thread(target = receive_video, args = (UDP_PORT1, "CAM1"), daemon = True)
@@ -153,15 +203,22 @@ def start_depth_action():
     thread2.start()
 
     # 상태 관리 변수
+    global emergency_mode
     roi_x1, roi_y1, roi_x2, roi_y2 = 180, 200, 480, 400
     roi_center = (roi_x1 + roi_x2) // 2
     filteredImg_prev, prev_action, current_action = None, None, None
+    stop_action = "STOP"
 
     while True:
         with lock:
             frameL = frames["CAM1"]  # 좌측 카메라
             frameR = frames["CAM2"]  # 우측 카메라
         if frameL is None or frameR is None:
+            if frameL is None:
+                print("None L frame", end = ' ')
+            if frameR is None:
+                print("None R frame", end = ' ')   
+            print()
             continue  # 프레임이 준비되지 않았으면 건너뜀
 
         # 보정진행 및 remap
@@ -183,9 +240,13 @@ def start_depth_action():
             track_id = box.id
             if track_id is None:
                 continue
+
+            # 클래스명 가져오기
+            class_id = int(box.cls[0])
+            class_name = model.names[class_id] 
+
+            # 좌표계산
             x1, y1, x2, y2 = map(int, box.xyxy[0])
-            
-            # 객체 중심
             cx = (x1 + x2) // 2
             cy = (y1 + y2) // 2
 
@@ -204,31 +265,39 @@ def start_depth_action():
             # 사이즈 내 평균시차, 초점거리, 베이스라인으로 distance 계산 
             avg_disp = np.mean(vals_filtered)
             distance = compute_depth_physical(avg_disp, focal_length_px, baseline_m)
-            if distance <= 0 or distance > 3:
+            
+            if distance <= 0:
                 continue
-
-            # roi 범위확인
-            in_roi = (x1 < roi_x2 and x2 > roi_x1 and y1 < roi_y2 and y2 > roi_y1)
-            if in_roi and distance <= 0.5:
-                threats.append((distance, cx, track_id))
 
             # 객체 id 및 distance 출력
             label = f"ID:{int(track_id)} {float(distance):.2f}m"
             cv2.rectangle(Left_nice, (x1, y1), (x2, y2), (0,255,0), 2)
             cv2.putText(Left_nice, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
 
-        if threats:
-            threats.sort()
-            _, cx, track_id = threats[0]
-            current_action = 'RIGHT_MOVE' if cx < roi_center else 'LEFT_MOVE'
-        else:
-            current_action = 'FORWARD'
+            # 불 or 사람 감지 시
+            if class_name in ["fire", "person"] and not emergency_mode:
+                ret = motionPrediction()
+                if ret != "normal":
+                    threading.Thread(target = handle_emergency, args =(client_socket, stop_action, prev_action), daemon = True).start()            
 
-        # 이전 명령에서 변경되었을 경우
-        if prev_action != current_action:
-            print(f"Action: {current_action}")
-            prev_action = current_action
-            client_socket.send(current_action.encode('utf-8'))
+            # roi 범위확인
+            in_roi = (x1 < roi_x2 and x2 > roi_x1 and y1 < roi_y2 and y2 > roi_y1)
+            if in_roi and distance <= 0.5:
+                threats.append((distance, cx, track_id))
+
+        if not emergency_mode:
+            if threats:
+                threats.sort()
+                _, cx, track_id = threats[0]
+                current_action = 'RIGHT_MOVE' if cx < roi_center else 'LEFT_MOVE'
+            else:
+                current_action = 'FORWARD'
+
+            # 비상상황 아니고 이전명령 변경되었을 경우
+            if prev_action != current_action:
+                print(f"Action: {current_action}")
+                prev_action = current_action
+                client_socket.send(current_action.encode('utf-8'))
     
         filteredImg = np.clip(filtered, 0, num_disp * 16).astype(np.float32)
         filteredImg = (filteredImg / (num_disp * 16)) * 255.0
