@@ -8,5 +8,6 @@
 *.pt
 *.pth.tar
 *.mov
+*.MOV
 
 __pycache__
