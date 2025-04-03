@@ -33,21 +33,15 @@ DB_NAME = os.environ.get("DB_NAME")
 TCP_IP = '192.168.28.150'
 TCP_PORT = 6001
 
-trigger_word = "패트롤"
-listening = False 
-
 command_dict = {
-                    "앞으로 이동": "FORWARD", 
-                    "뒤로 이동": "BACKWㅁRD",
-                    "왼쪽으로 이동": "LEFT_MOVE",
-                    "오른쪽으로 이동": "RIGHT_MOVE",
-                    "왼쪽으로 돌아": "LEFT_TURN",
-                    "오른쪽으로 돌아": "RIGHT_TURN",
+                    "전진": "FORWARD", 
+                    "후진": "BACKWARD",
+                    "좌측": "LEFT_MOVE",
+                    "우측": "RIGHT_MOVE",
+                    "좌회전": "LEFT_TURN",
+                    "우회전": "RIGHT_TURN",
                     "정지": "STOP"
                 }
-
-tts_engine = pyttsx3.init()
-tts_engine.setProperty('rate', 170) 
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -86,7 +80,6 @@ class VideoReceiver(QThread):
         self.sock.close()
 
 class CommandSender(QThread):
-    tts_speak_signal = pyqtSignal(str) 
 
     def __init__(self):
         super().__init__()
@@ -116,23 +109,13 @@ class CommandSender(QThread):
                 text = self.recognizer.recognize_google(audio, language="ko-KR")
                 print(f"인식된 단어: {text}")
 
-                if trigger_word == text and not self.listening:
-                    print(f"'{trigger_word}' 감지됨! 다음 음성을 명령으로 인식합니다.")
-                    self.tts_speak_signal.emit("네")
-                    self.listening = True 
-                    continue 
-
-                if self.listening:
-                    print(f"명령어 전송: {text}")
-                    if text in command_dict:
-                        command = command_dict[text]
-                        print(f"명령어 전송: {command}")
-                        self.tcp_sock.sendall(command.encode('utf-8'))
-                        print(f"명령어 '{command}' 전송 완료.")
-                    else:
-                        print(f"알 수 없는 명령어: '{text}'")
-                        self.tts_speak_signal.emit("알 수 없는 명령어")
-                    self.listening = False
+                if text in command_dict:
+                    command = command_dict[text]
+                    print(f"명령어 전송: {command}")
+                    self.tcp_sock.sendall(command.encode('utf-8'))
+                    print(f"명령어 '{command}' 전송 완료.")
+                else:
+                    print(f"알 수 없는 명령어: '{text}'")
 
             except sr.UnknownValueError:
                 print("음성을 인식할 수 없습니다.")
@@ -183,11 +166,6 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.last_triggered_time = None  # ⛑️ 마지막으로 실행된 예약 시간
 
         self.command_thread = CommandSender()
-        self.command_thread.tts_speak_signal.connect(self.handle_tts_speak)
-
-    def handle_tts_speak(self, text):
-        tts_engine.say(text)
-        tts_engine.runAndWait()
 
     def check_reservation(self):
         try:
