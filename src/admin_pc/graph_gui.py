@@ -6,8 +6,10 @@ from PyQt5.QtGui import QPixmap
 from PyQt5 import uic, QtWidgets
 from PyQt5.QtCore import QDate
 from io import BytesIO
+import mysql.connector
 from dotenv import load_dotenv
 import os
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -15,7 +17,12 @@ GRAPH_GUI = os.environ.get("PATH_TO_GRAPH_GUI")
 LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
 MAIN_GUI = os.environ.get("PATH_TO_MAIN_GUI")
 
-# UI 파일 로드
+HOST = os.environ.get("MYSQL_HOST")
+USER = os.environ.get("MYSQL_USER")
+PASSWD = os.environ.get("MYSQL_PASSWD")
+DB_NAME = os.environ.get("DB_NAME")
+
+# Load UI file
 ui_file = GRAPH_GUI
 log_gui = LOG_GUI
 main_gui = MAIN_GUI
@@ -26,8 +33,14 @@ class GraphGUI(QDialog, Ui_Dialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.remote = mysql.connector.connect(
+            host=HOST,
+            user=USER,
+            password=PASSWD,
+            database=DB_NAME
+        )
 
-        # 날짜 설정
+        # Set initial date values
         today = QDate.currentDate()
         self.start_date.setDate(today)
         self.end_date.setDate(today)
@@ -35,68 +48,178 @@ class GraphGUI(QDialog, Ui_Dialog):
 
         self.start_date.dateChanged.connect(self.toggle_end_date)
         self.start_date.dateChanged.connect(self.update_end_date_minimum)
+        self.start_date.dateChanged.connect(self.update_graphs)
+        self.end_date.dateChanged.connect(self.update_graphs)
 
-        # 🔥 버튼 클릭 시 그래프 업데이트
+        # Update graph when mode (comboBox) changes
         self.comboBox.currentTextChanged.connect(self.update_graphs)
 
         self.main_btn.clicked.connect(self.back_to_main)
         self.back_btn.clicked.connect(self.back_to_log)
 
-
     def update_end_date_minimum(self):
-        """start_date가 변경되면 end_date의 최소값을 변경"""
+        """Set minimum date for end_date based on start_date"""
         start_date_value = self.start_date.date()
         self.end_date.setMinimumDate(start_date_value)
 
     def toggle_end_date(self):
-        """start_date가 변경되면 end_date 활성화 여부 설정"""
+        """Enable end_date only if start_date is set"""
         if self.start_date.date() != QDate(1970, 1, 1):
             self.end_date.setEnabled(True)
         else:
             self.end_date.setEnabled(False)
 
-    def generate_bar_plot(self):
-        """Matplotlib을 사용하여 막대 그래프 생성"""
-        x = np.arange(5)
-        y = np.random.randint(1, 10, 5)
+    def generate_bar_plot(self, mode, start_date_qdate, end_date_qdate):
+        event_id_map = {
+            "Fight": 1,
+            "Fire": 2,
+            "Lying": 3,
+            "Smoking": 4
+        }
 
-        fig, ax = plt.subplots(figsize=(5, 3))
-        ax.bar(x, y, color='skyblue')
+        start_str = start_date_qdate.toString("yyyy-MM-dd")
+        end_str = end_date_qdate.toString("yyyy-MM-dd")
+        start_date = datetime.strptime(start_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_str, "%Y-%m-%d")
+        total_days = (end_date - start_date).days + 1
+        date_labels = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
 
-        ax.set_title("Bar Plot")
-        ax.set_xlabel("Categories")
-        ax.set_ylabel("Values")
+        fig, ax = plt.subplots(figsize=(7, 4))
+        cursor = self.remote.cursor()
 
-        pixmap = self.convert_plot_to_pixmap(fig)
-        plt.close(fig)  # 🔥 메모리 누수 방지
-        return pixmap
+        if mode == "Select":
+            width = 0.2
+            x = np.arange(len(date_labels))
+            max_y = 0
 
-    def generate_line_plot(self, mode="default"):
-        x = np.linspace(0, 10, 100)
+            for idx, (event_name, event_id) in enumerate(event_id_map.items()):
+                query = """
+                    SELECT DATE(createDate) as date, COUNT(*) as count
+                    FROM Event_Log
+                    WHERE eventId = %s AND DATE(createDate) BETWEEN %s AND %s
+                    GROUP BY DATE(createDate)
+                """
+                cursor.execute(query, (event_id, start_str, end_str))
+                result = cursor.fetchall()
+                count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
+                counts = [count_dict.get(day, 0) for day in date_labels]
+                max_y = max(max_y, max(counts))
 
-        if mode == "Fight":
-            y = np.sin(x)
-        elif mode == "Fire":
-            y = np.cos(x)
-        elif mode == "Lying":
-            y = np.tan(x)
-            y = np.clip(y, -10, 10)  # 너무 튀는 값 제한
-        else:  # "Select" or anything else
-            y = np.sin(x + np.random.rand())
+                ax.bar(x + width * idx, counts, width=width, label=event_name)
 
-        fig, ax = plt.subplots(figsize=(5, 3))
-        ax.plot(x, y, color='red')
+            ax.set_xticks(x + width)
+            ax.set_xticklabels(date_labels, rotation=45)
+            ax.set_yticks(np.arange(0, max_y + 2, 1))  # Y축 1단위 눈금
+            ax.set_title("All Events - Daily Count")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Count")
+            ax.legend()
 
-        ax.set_title(f"{mode} Line Plot")
-        ax.set_xlabel("X-axis")
-        ax.set_ylabel("Y-axis")
+        else:
+            event_id = event_id_map.get(mode)
+            if event_id is None:
+                return QPixmap()
+
+            query = """
+                SELECT DATE(createDate) as date, COUNT(*) as count
+                FROM Event_Log
+                WHERE eventId = %s AND DATE(createDate) BETWEEN %s AND %s
+                GROUP BY DATE(createDate)
+            """
+            cursor.execute(query, (event_id, start_str, end_str))
+            result = cursor.fetchall()
+            count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
+            counts = [count_dict.get(day, 0) for day in date_labels]
+            max_y = max(counts) if counts else 1
+
+            ax.bar(date_labels, counts, color='skyblue')
+            ax.set_yticks(np.arange(0, max_y + 2, 1))  # Y축 1단위 눈금
+            ax.set_title(f"{mode} - Daily Count")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Count")
+            ax.tick_params(axis='x', rotation=45)
 
         pixmap = self.convert_plot_to_pixmap(fig)
         plt.close(fig)
         return pixmap
 
+
+    def generate_line_plot(self, mode="default", start_date_qdate=None, end_date_qdate=None):
+        event_id_map = {
+            "Fight": 1,
+            "Fire": 2,
+            "Lying": 3,
+            "Smoking": 4
+        }
+
+        if start_date_qdate is None or end_date_qdate is None:
+            return QPixmap()
+
+        start_str = start_date_qdate.toString("yyyy-MM-dd")
+        end_str = end_date_qdate.toString("yyyy-MM-dd")
+        start_date = datetime.strptime(start_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_str, "%Y-%m-%d")
+        total_days = (end_date - start_date).days + 1
+        date_labels = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
+
+        fig, ax = plt.subplots(figsize=(7, 4))
+        cursor = self.remote.cursor()
+
+        if mode == "Select":
+            max_y = 0
+            for event_name, event_id in event_id_map.items():
+                query = """
+                    SELECT DATE(createDate) as date, COUNT(*) as count
+                    FROM Event_Log
+                    WHERE eventId = %s AND DATE(createDate) BETWEEN %s AND %s
+                    GROUP BY DATE(createDate)
+                """
+                cursor.execute(query, (event_id, start_str, end_str))
+                result = cursor.fetchall()
+                count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
+                counts = [count_dict.get(day, 0) for day in date_labels]
+                max_y = max(max_y, max(counts))
+
+                ax.plot(date_labels, counts, marker='o', linestyle='-', label=event_name)
+
+            ax.set_yticks(np.arange(0, max_y + 2, 1))
+            ax.set_title("All Events - Line Graph")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Count")
+            ax.tick_params(axis='x', rotation=45)
+            ax.legend()
+
+        else:
+            event_id = event_id_map.get(mode)
+            if event_id is None:
+                return QPixmap()
+
+            query = """
+                SELECT DATE(createDate) as date, COUNT(*) as count
+                FROM Event_Log
+                WHERE eventId = %s AND DATE(createDate) BETWEEN %s AND %s
+                GROUP BY DATE(createDate)
+            """
+            cursor.execute(query, (event_id, start_str, end_str))
+            result = cursor.fetchall()
+            count_dict = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
+            counts = [count_dict.get(day, 0) for day in date_labels]
+            max_y = max(counts) if counts else 1
+
+            ax.plot(date_labels, counts, color='red', marker='o', linestyle='-')
+            ax.set_yticks(np.arange(0, max_y + 2, 1))
+            ax.set_title(f"{mode} - Trend")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Count")
+            ax.tick_params(axis='x', rotation=45)
+
+        pixmap = self.convert_plot_to_pixmap(fig)
+        plt.close(fig)
+        return pixmap
+
+
     def convert_plot_to_pixmap(self, fig):
-        """Matplotlib Figure를 QPixmap으로 변환"""
+        """Convert Matplotlib Figure to QPixmap"""
         buffer = BytesIO()
         fig.savefig(buffer, format="png")
         buffer.seek(0)
@@ -108,39 +231,17 @@ class GraphGUI(QDialog, Ui_Dialog):
 
     def update_graphs(self):
         selected_option = self.comboBox.currentText()
+        start = self.start_date.date()
+        end = self.end_date.date()
 
-        if selected_option == "Fight":
-            bar_pixmap = self.generate_bar_plot()
-            line_pixmap = self.generate_line_plot()
+        bar_pixmap = self.generate_bar_plot(selected_option, start, end)
+        line_pixmap = self.generate_line_plot(mode=selected_option, start_date_qdate=start, end_date_qdate=end)
 
-            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
-            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
+        self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
+        self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
 
-        elif selected_option == "Fire":
-            bar_pixmap = self.generate_bar_plot()
-            line_pixmap = self.generate_line_plot()
-
-            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
-            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
-
-        elif selected_option == "Lying":
-            bar_pixmap = self.generate_bar_plot()
-            line_pixmap = self.generate_line_plot()
-
-            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
-            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
-
-        else:
-            bar_pixmap = self.generate_bar_plot()
-            line_pixmap = self.generate_line_plot()
-
-            self.bar_label.setPixmap(bar_pixmap.scaled(self.bar_label.size(), aspectRatioMode=1))
-            self.line_label.setPixmap(line_pixmap.scaled(self.line_label.size(), aspectRatioMode=1))
-
-    
-    # Change the method like this:
     def back_to_main(self):
-        from main_gui import MainGUI  # 👈 import here
+        from main_gui import MainGUI
         self.main_window = MainGUI()
         self.main_window.show()
         self.close()
