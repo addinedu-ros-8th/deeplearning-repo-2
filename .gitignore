@@ -9,5 +9,6 @@
 *.pth.tar
 *.mov
 *.MOV
+*.avi
 
 __pycache__
