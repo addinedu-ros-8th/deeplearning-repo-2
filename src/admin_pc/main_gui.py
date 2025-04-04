@@ -11,8 +11,6 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
 import speech_recognition as sr
-import socket
-import pyttsx3
 
 load_dotenv()
 
@@ -42,6 +40,9 @@ command_dict = {
                     "우회전": "RIGHT_TURN",
                     "정지": "STOP"
                 }
+
+REC_IP = '192.168.219.134'
+REC_PORT = 6001
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -112,7 +113,11 @@ class CommandSender(QThread):
                 if text in command_dict:
                     command = command_dict[text]
                     print(f"명령어 전송: {command}")
-                    self.tcp_sock.sendall(command.encode('utf-8'))
+                    if self.tcp_sock:
+                        self.tcp_sock.send(command.encode('utf-8'))
+                    else:
+                        print("⚠️ TCP 소켓이 연결되어 있지 않습니다.")
+
                     print(f"명령어 '{command}' 전송 완료.")
                 else:
                     print(f"알 수 없는 명령어: '{text}'")
@@ -127,6 +132,40 @@ class CommandSender(QThread):
         self.quit()
         self.wait()
         self.tcp_sock.close()
+
+class RecReceiver(QThread):
+    rec_signal = pyqtSignal(bool)
+
+    def __init__(self):
+        super().__init__()
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.settimeout(1.0)
+        self.sock.connect((REC_IP, REC_PORT))
+        self.running = True
+
+    def run(self):
+        while self.running:
+            try:
+                data = self.sock.recv(1024).decode()
+                
+                if data == "REC_ON":
+                    self.rec_signal.emit(True)
+                elif data == "REC_OFF":
+                     self.rec_signal.emit(False)
+                else:
+                    print("올바르지 않은 명령어입니다.")
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"Receiver error: {e}")
+                break
+
+    def stop(self):
+        self.running = False
+        self.quit()
+        self.wait()
+        self.sock.close()
 
 
 class MainGUI(QtWidgets.QDialog, Ui_Dialog):
@@ -151,6 +190,13 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.video_thread.frame_received.connect(self.update_frame)
         self.video_thread.start()
 
+        self.record_thread = RecReceiver()
+        self.record_thread.rec_signal.connect(self.handle_recording)
+        self.record_thread.start()
+        self.is_recording = False
+        self.frame = None
+        self.writer = None
+
         self.manual_btn.clicked.connect(self.manual_mode)
         self.patrol_btn.clicked.connect(self.patrol_mode)
         self.log_btn.clicked.connect(self.show_log)
@@ -166,6 +212,31 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.last_triggered_time = None  # ⛑️ 마지막으로 실행된 예약 시간
 
         self.command_thread = CommandSender()
+
+    def handle_recording(self, start):
+        if start:
+            print("🎥 녹화 시작")
+            self.recordingStart()
+        else:
+            print("🛑 녹화 종료")
+            self.recordingStop()
+
+    def recordingStart(self):
+        self.now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = self.now + ".mp4"
+        self.fourcc = cv2.VideoWriter_fourcc(*"XVID")
+
+        h, w, _ = self.frame.shape 
+
+        self.writer = cv2.VideoWriter(file_name, self.fourcc, 20.0, (w, h))
+        self.is_recording = True
+
+    def recordingStop(self):
+        self.is_recording = False
+        if self.writer:
+            self.writer.release()
+            self.writer = None
+
 
     def check_reservation(self):
         try:
@@ -240,6 +311,8 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
             print(f"[DB ERROR] 예약 시간 표시 실패: {e}")
 
     def update_frame(self, frame):
+        self.frame = frame.copy()
+        
         label_width = self.label.width()
         label_height = self.label.height()
         frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
@@ -249,6 +322,10 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         q_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(q_img)
         self.label.setPixmap(pixmap)
+        
+        if self.is_recording and self.writer:
+            self.writer.write(frame)
+
 
     def manual_mode(self):
         print("Manual Mode Activated")
@@ -265,7 +342,6 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         if self.command_thread.isRunning():
             self.command_thread.stop()
             self.command_thread = CommandSender()
-            self.command_thread.tts_speak_signal.connect(self.handle_tts_speak)
             
         self.patrol.setChecked(True)
         self.manual_btn.setDisabled(False)
@@ -293,6 +369,10 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
 
     def closeEvent(self, event):
         self.video_thread.stop()
+        self.record_thread.stop()
+        self.command_thread.stop()
+        if self.is_recording:
+            self.writer.release()
         event.accept()
 
 
