@@ -194,6 +194,8 @@ def motionPrediction(image, poses, yolo_model, lstm_model):
 
         xyz_list_list = []  # 시퀀스 초기화
 
+    cv2.putText(image, status, (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 0, 0), 2)
+
     return status
 
 
