@@ -20,6 +20,7 @@ else:
 
 xyz_list_list = []
 status = "None"
+prev_rec_action = "None"
 
 
 ############################################
@@ -198,9 +199,7 @@ def motionPrediction(image, poses, yolo_model, lstm_model):
             with torch.no_grad():
                 result = lstm_model(data)
                 _, out = torch.max(result, 1)
-                print(out)
                 status = status_dict.get(out.item(), 'Unknown')
-                print(status)
 
         xyz_list_list = []  # 시퀀스 초기화
 
@@ -281,10 +280,15 @@ def load_calibration():
 # 녹화 관련 통신
 ############################################
 def rec_command_sender(rec_action):
+    global prev_rec_action
+
     rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     rec_socket.connect((REC_IP, REC_PORT))
 
-    rec_socket.send(rec_action.encode("utf-8"))
+    if rec_action != prev_rec_action:
+        rec_socket.send(rec_action.encode("utf-8"))
+        prev_rec_action = rec_action
+
     rec_socket.close()
 
 
