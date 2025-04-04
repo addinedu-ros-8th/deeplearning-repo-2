@@ -1,49 +1,75 @@
 import socket
+import threading
 
-# Admin Client에서 수신할 포트
+##################################################
+# 포트 설정
+##################################################
+HOST = '0.0.0.0'
 MAIN_SERVER_PORT = 5001
-# Raspberry Pi로 보낼 포트
-RASPBERRY_PI_IP = "192.168.65.150"  # Raspberry Pi IP 주소
-RASPBERRY_PI_PORT = 5001
 
-def forward_to_raspberry(message):
-    """Raspberry Pi로 메시지 전달"""
-    try:
-        pi_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        pi_sock.connect((RASPBERRY_PI_IP, RASPBERRY_PI_PORT))
-        pi_sock.sendall(message.encode("utf-8"))
-        pi_sock.close()
-        print(f"[→] Sent to Raspberry Pi: {message}")
-    except Exception as e:
-        print(f"[!] Failed to send to Raspberry Pi: {e}")
+connections = {}
 
-def handle_admin_client():
-    """Admin Client에서 명령을 받아 Raspberry Pi로 전달"""
-    main_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    main_sock.bind(("0.0.0.0", MAIN_SERVER_PORT))
-    main_sock.listen(5)
-
-    print(f"[*] Listening for commands on port {MAIN_SERVER_PORT}...")
-
+##################################################
+# TCP소켓 연결받기
+##################################################
+def handle_client(conn, addr, role):
+    print(f"[+] {role} 연결됨: {addr}")
+    
     while True:
-        client, addr = main_sock.accept()
-        print(f"[*] Connection from {addr}")
-
         try:
-            while True:
-                data = client.recv(1024).decode("utf-8")
-                if not data:
-                    break
-                
-                print(f"[Admin Client] Received: {data}")
+            data = conn.recv(1024)
+            if not data:
+                print(f"[-] {role} 연결 종료")
+                break
 
-                # Raspberry Pi로 전달
-                forward_to_raspberry(data)
+            message = data.decode().strip()
+            print(f"[{role}] 수신: {message}")
+
+            # ai서버로 부터 올 때
+            if role == 'AI':
+                if message in ['STOP', 'LEFT_MOVE', 'RIGHT_MOVE']:
+                    if 'RPI' in connections:
+                        connections['RPI'].send(data)
+                elif message in ['REC_ON', 'REC_OFF']:
+                    if 'GUI' in connections:
+                        connections['GUI'].send(data)
+            # gui로 부터 올 때
+            elif role == 'GUI':
+                if 'RPI' in connections:
+                    connections['RPI'].send(data)
+
         except Exception as e:
-            print(f"[!] Error: {e}")
-        finally:
-            client.close()
+            print(f"[!] {role} 처리 중 예외: {e}")
+            break
 
+    conn.close()
+
+
+##################################################
+# MAIN
+##################################################
 if __name__ == "__main__":
-    handle_admin_client()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    server_socket.bind((HOST, MAIN_SERVER_PORT))
+    server_socket.listen(3)
+
+    print("[*] 서버 시작됨. 연결 대기 중...")
+
+    # 1. AI 서버 연결
+    ai_conn, ai_addr = server_socket.accept()
+    connections['AI'] = ai_conn
+    threading.Thread(target = handle_client, args=(ai_conn, ai_addr, 'AI')).start()
+
+    # 2. GUI 연결
+    gui_conn, gui_addr = server_socket.accept()
+    connections['GUI'] = gui_conn
+    threading.Thread(target = handle_client, args=(gui_conn, gui_addr, 'GUI')).start()
+
+    # 3. 라즈베리파이 연결
+    rpi_conn, rpi_addr = server_socket.accept()
+    connections['RPI'] = rpi_conn
+    threading.Thread(target = handle_client, args=(rpi_conn, rpi_addr, 'RPI')).start()
 
