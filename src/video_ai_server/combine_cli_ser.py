@@ -18,6 +18,9 @@ else:
     print("your system is cuda")
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
+xyz_list_list = []
+status = "None"
+
 
 ############################################
 # 이상행동 탐지 모델
@@ -87,7 +90,7 @@ UDP_IP = "0.0.0.0"  # 모든 네트워크 인터페이스에서 수신
 UDP_PORT1 = 6000   # 첫 번째 카메라 포트 (왼쪽)
 UDP_PORT2 = 7000   # 두 번째 카메라 포트 (오른쪽)
 MAX_PACKET_SIZE = 60000
-SERVER_HOST = '192.168.28.150'  # 명령 보낼 ip (메인서버쪽)
+SERVER_HOST = '172.24.125.150'  # 명령 보낼 ip (메인서버쪽)
 SERVER_PORT = 6001              # 명령 보낼 포트 (메인서버쪽)
 
 FORWARD_PORT = 5000  # Forward video data to admin GUI's port
@@ -134,15 +137,16 @@ def receive_video(udp_port, cam_id):
 ############################################
 def motionPrediction(image, poses, yolo_model, lstm_model):
     # 예: "fall_detected", "fire_detected", "normal"
+    global xyz_list_list
+    global status
+
     length = 18
     fire_cls = 2
     detect_cls = 1
 
     lstm_model.eval()
     dataset = []
-    status = 'None'
 
-    xyz_list_list = []
     status_dict = {0: 'normal', 1: 'fighting', 2: 'lying', 3: 'smoking'}
 
     image = cv2.resize(image, (640, 640))
@@ -168,6 +172,7 @@ def motionPrediction(image, poses, yolo_model, lstm_model):
         p2x1, p2y1, p2x2, p2y2 = 0, 0, 0, 0
         for idx, cls in enumerate(box_class):
             if int(cls) == fire_cls:
+                print(cls)
                 return "fire"
             elif int(cls) == detect_cls and boxes:
                 p1x1, p1y1, p1x2, p1y2 = map(int, boxes[idx])
@@ -190,11 +195,11 @@ def motionPrediction(image, poses, yolo_model, lstm_model):
             with torch.no_grad():
                 result = lstm_model(data)
                 _, out = torch.max(result, 1)
+                print(out)
                 status = status_dict.get(out.item(), 'Unknown')
+                print(status)
 
         xyz_list_list = []  # 시퀀스 초기화
-
-    cv2.putText(image, status, (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 0, 0), 2)
 
     return status
 
@@ -274,7 +279,7 @@ def load_calibration():
 def handle_emergency(client_socket, stop_action, prev_action, status):
     global emergency_mode    
 
-    if status != "normal":
+    if status != "normal" and status != "None":
         emergency_mode = True
         client_socket.send(stop_action.encode('utf-8'))
         print("emergency STOP")
@@ -305,16 +310,18 @@ def start_depth_action():
     Right_Stereo_Map = (Right_Stereo_Map0, Right_Stereo_Map1)
 
     # 스테레오 매칭 설정
-    window_size, min_disp, num_disp = 5, 2, 128
-    stereo = cv2.StereoSGBM_create(minDisparity = min_disp, 
-                                    numDisparities = num_disp, 
-                                    blockSize = window_size,
-                                    uniquenessRatio = 10, 
-                                    speckleWindowSize = 100, 
-                                    speckleRange = 32, 
-                                    disp12MaxDiff = 5,
-                                    P1 = 8 * 3 * window_size ** 2, 
-                                    P2 = 32 * 3 * window_size ** 2)
+    window_size = 3
+    min_disp = 2
+    num_disp = 64  # 640의 약수로 설정
+    stereo = cv2.StereoSGBM_create(minDisparity=min_disp,
+                                   numDisparities=num_disp,
+                                   blockSize=window_size,
+                                   uniquenessRatio=10,
+                                   speckleWindowSize=100,
+                                   speckleRange=32,
+                                   disp12MaxDiff=5,
+                                   P1=8*3*window_size**2,
+                                   P2=32*3*window_size**2)
     stereoR = cv2.ximgproc.createRightMatcher(stereo)
 
     # wls 필터 적용 
@@ -323,14 +330,14 @@ def start_depth_action():
     wls_filter.setSigmaColor(1.8)
 
     # YOLO 모델 로드(사람 + 소화기 + 불)
-    model = YOLO('../model/merge_best.pt')
+    model = YOLO('../model/extin_per_fire.pt')
 
     # mediapipe 모델 로드
     mp_pose = mp.solutions.pose
     poses = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
 
     # LSTM 모델 로드
-    model_path = "/home/pepsi/dev_ws/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
+    model_path = "/home/mu/dev_ws/project_3/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
     lstm_model = LSTM().to(device)
     lstm_model.load_state_dict(torch.load(model_path, map_location=device))
     lstm_model.eval()
@@ -372,6 +379,8 @@ def start_depth_action():
         disp_map = filtered.astype(np.float32) / 16.0
 
         status = motionPrediction(Left_nice, poses, model, lstm_model)
+        cv2.putText(Left_nice, status, (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 0, 0), 2)
+
         threading.Thread(target = handle_emergency, args =(client_socket, stop_action, prev_action, status), daemon = True).start() 
 
         results = model.track(Left_nice, conf = 0.6, persist = True, verbose = False)
@@ -418,7 +427,7 @@ def start_depth_action():
 
             # roi 범위확인
             in_roi = (x1 < roi_x2 and x2 > roi_x1 and y1 < roi_y2 and y2 > roi_y1)
-            if in_roi and distance <= 0.5:
+            if in_roi and distance <= 100.0:
                 threats.append((distance, cx, track_id))
 
         if not emergency_mode:
