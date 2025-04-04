@@ -96,6 +96,9 @@ SERVER_PORT = 6001              # 명령 보낼 포트 (메인서버쪽)
 FORWARD_PORT = 5000  # Forward video data to admin GUI's port
 FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
 
+REC_IP = "192.168.0.85"
+REC_PORT = 5001
+
 
 ############################################
 # 왼쪽, 오른쪽 프레임 데이터 저장 버퍼
@@ -271,6 +274,19 @@ def load_calibration():
     else:
         print('Calibration file not found. Performing calibration...')
         return calibrate_stereo()
+    
+
+    
+############################################
+# 녹화 관련 통신
+############################################
+def rec_command_sender(rec_action):
+    rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    rec_socket.connect((REC_IP, REC_PORT))
+
+    rec_socket.send(rec_action.encode("utf-8"))
+    rec_socket.close()
+
 
 
 ############################################
@@ -282,6 +298,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
     if status != "normal" and status != "None":
         emergency_mode = True
         client_socket.send(stop_action.encode('utf-8'))
+        rec_command_sender("REC_ON")
         print("emergency STOP")
         print("녹화시작")
         
@@ -291,6 +308,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
         else:
             client_socket.send(prev_action.encode('utf-8'))
 
+        rec_command_sender("REC_OFF")
         emergency_mode = False
 
 
