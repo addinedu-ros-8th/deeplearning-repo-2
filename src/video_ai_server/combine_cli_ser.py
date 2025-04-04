@@ -135,6 +135,7 @@ def receive_video(udp_port, cam_id):
 def motionPrediction(image, poses, yolo_model, lstm_model):
     # 예: "fall_detected", "fire_detected", "normal"
     length = 18
+    fire_cls = 2
     detect_cls = 1
 
     lstm_model.eval()
@@ -166,11 +167,12 @@ def motionPrediction(image, poses, yolo_model, lstm_model):
         p1x1, p1y1, p1x2, p1y2 = 0, 0, 0, 0
         p2x1, p2y1, p2x2, p2y2 = 0, 0, 0, 0
         for idx, cls in enumerate(box_class):
-            if int(cls) == detect_cls:
-                p1x1, p1y1, p1x2, p1y2 = map(int, boxes[0])
-                if len(boxes) > 1:
-                    p2x1, p2y1, p2x2, p2y2 = map(int, boxes[1])
-
+            if int(cls) == fire_cls:
+                return "fire"
+            elif int(cls) == detect_cls and boxes:
+                p1x1, p1y1, p1x2, p1y2 = map(int, boxes[idx])
+                if len(boxes) > idx + 1:
+                    p2x1, p2y1, p2x2, p2y2 = map(int, boxes[idx + 1])
                 break
 
         # YOLO 박스 좌표 정규화 후 추가
