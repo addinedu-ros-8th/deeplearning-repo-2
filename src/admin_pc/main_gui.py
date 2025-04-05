@@ -43,7 +43,7 @@ command_dict = {
                     "정지": "STOP"
                 }
 
-REC_IP = "0.0.0.0"
+REC_IP = "192.168.0.85"
 REC_PORT = 6001
 
 # UI 파일 로드
