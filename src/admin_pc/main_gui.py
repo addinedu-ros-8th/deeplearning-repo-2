@@ -31,6 +31,8 @@ DB_NAME = os.environ.get("DB_NAME")
 TCP_IP = '192.168.28.150'
 TCP_PORT = 6001
 
+video_save_dir = "/Users/wjsong/dev_ws/deeplearning-repo-2/src/admin_pc/video_out/"
+
 command_dict = {
                     "전진": "FORWARD", 
                     "후진": "BACKWARD",
@@ -41,7 +43,7 @@ command_dict = {
                     "정지": "STOP"
                 }
 
-REC_IP = '192.168.219.134'
+REC_IP = "192.168.219.134"
 REC_PORT = 6001
 
 # UI 파일 로드
@@ -57,7 +59,7 @@ class VideoReceiver(QThread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.settimeout(1.0)
-        self.sock.bind((UDP_IP, UDP_PORT))
+        self.sock.connect((UDP_IP, UDP_PORT))
         self.running = True
 
     def run(self):
@@ -141,7 +143,7 @@ class RecReceiver(QThread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.settimeout(1.0)
-        self.sock.connect((REC_IP, REC_PORT))
+        self.sock.bind((REC_IP, REC_PORT))
         self.running = True
 
     def run(self):
@@ -224,11 +226,11 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
     def recordingStart(self):
         self.now = datetime.now().strftime("%Y%m%d_%H%M%S")
         file_name = self.now + ".mp4"
-        self.fourcc = cv2.VideoWriter_fourcc(*"XVID")
+        self.fourcc = cv2.VideoWriter_fourcc(*"DIVX")
 
         h, w, _ = self.frame.shape 
 
-        self.writer = cv2.VideoWriter(file_name, self.fourcc, 20.0, (w, h))
+        self.writer = cv2.VideoWriter(os.path.join(video_save_dir, file_name), self.fourcc, 20.0, (w, h))
         self.is_recording = True
 
     def recordingStop(self):
@@ -324,7 +326,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.label.setPixmap(pixmap)
         
         if self.is_recording and self.writer:
-            self.writer.write(frame)
+            self.writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
 
     def manual_mode(self):
