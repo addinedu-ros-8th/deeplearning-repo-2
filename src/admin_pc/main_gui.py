@@ -43,9 +43,8 @@ command_dict = {
                     "정지": "STOP"
                 }
 
-REC_IP = "192.168.0.85"
+REC_IP = "0.0.0.0"
 REC_PORT = 6001
-status = None
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -137,8 +136,7 @@ class CommandSender(QThread):
         self.tcp_sock.close()
 
 class RecReceiver(QThread):
-    rec_signal = pyqtSignal(bool)
-    global status
+    rec_signal = pyqtSignal(bool, str)
 
     def __init__(self):
         super().__init__()
@@ -153,12 +151,11 @@ class RecReceiver(QThread):
             try:
                 data = self.sock.recv(1024).decode()
                 action, status = data.split(":")
-                self.status = status
                 
                 if action == "REC_ON":
-                    self.rec_signal.emit(True)
+                    self.rec_signal.emit(True, status)
                 elif action == "REC_OFF":
-                     self.rec_signal.emit(False)
+                     self.rec_signal.emit(False, status)
                 else:
                     print("올바르지 않은 명령어입니다.")
             except socket.timeout:
@@ -175,6 +172,7 @@ class RecReceiver(QThread):
 
 
 class MainGUI(QtWidgets.QDialog, Ui_Dialog):
+    global status
     def __init__(self):
         super().__init__()
         self.setupUi(self)
@@ -202,6 +200,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.is_recording = False
         self.frame = None
         self.writer = None
+        self.status = None
 
         self.manual_btn.clicked.connect(self.manual_mode)
         self.patrol_btn.clicked.connect(self.patrol_mode)
@@ -218,31 +217,6 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.last_triggered_time = None  # ⛑️ 마지막으로 실행된 예약 시간
 
         self.command_thread = CommandSender()
-
-    def handle_recording(self, start):
-        if start:
-            print("🎥 녹화 시작")
-            self.recordingStart()
-        else:
-            print("🛑 녹화 종료")
-            self.recordingStop()
-
-    def recordingStart(self):
-        self.now = status + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = self.now + ".mp4"
-        self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-        h, w, _ = self.frame.shape 
-
-        self.writer = cv2.VideoWriter(os.path.join(video_save_dir, file_name), self.fourcc, 20.0, (w, h))
-        self.is_recording = True
-
-    def recordingStop(self):
-        self.is_recording = False
-        if self.writer:
-            self.writer.release()
-            self.writer = None
-
 
     def check_reservation(self):
         try:
@@ -279,6 +253,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                     self.last_triggered_time = reserved_datetime  # ⛑️ 예약 실행 시간 저장
                 else:
                     print("예약 시간에 도달하지 않았습니다.")
+                    
             else:
                 print("⛔️ 오늘 남은 예약 없음.")
         except mysql.connector.Error as e:
@@ -316,21 +291,60 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
             self.res_label.setText("Next Reservation : DB 에러")
             print(f"[DB ERROR] 예약 시간 표시 실패: {e}")
 
+    def handle_recording(self, start, rec_status):
+        self.status = rec_status
+        if start:
+            if not self.is_recording and self.frame is not None:
+                self.recordingStart()
+        else:
+            if self.is_recording:
+                self.recordingStop()
+
+    def recordingStart(self):
+        if self.frame is None:
+            print("❌ 녹화 시작 실패: frame이 None입니다.")
+            return
+
+        try:
+            self.now = str(self.status) + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_name = self.now + ".mp4"
+            self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            h, w, _ = self.frame.shape
+            save_path = os.path.join(video_save_dir, file_name)
+            self.writer = cv2.VideoWriter(save_path, self.fourcc, 20.0, (w, h))
+
+            if not self.writer.isOpened():
+                print(f"❌ VideoWriter 열기 실패: {save_path}")
+                self.writer = None
+                return
+
+            self.is_recording = True
+        except Exception as e:
+            print(f"❌ 녹화 시작 중 오류 발생: {e}")
+
+    def recordingStop(self):
+        self.is_recording = False
+        if self.writer:
+            self.writer.release()
+            self.writer = None
+
     def update_frame(self, frame):
         self.frame = frame.copy()
-        
         label_width = self.label.width()
         label_height = self.label.height()
-        frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        h, w, ch = frame.shape
+        resized_frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+        rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_frame.shape
         bytes_per_line = ch * w
-        q_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        q_img = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(q_img)
         self.label.setPixmap(pixmap)
-        
+
         if self.is_recording and self.writer:
-            self.writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            try:
+                self.writer.write(frame)
+            except Exception as e:
+                print(f"❌ 프레임 녹화 실패: {e}")
 
 
     def manual_mode(self):
