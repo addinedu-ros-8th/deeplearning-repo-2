@@ -45,6 +45,7 @@ command_dict = {
 
 REC_IP = "192.168.0.85"
 REC_PORT = 6001
+status = None
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -137,6 +138,7 @@ class CommandSender(QThread):
 
 class RecReceiver(QThread):
     rec_signal = pyqtSignal(bool)
+    global status
 
     def __init__(self):
         super().__init__()
@@ -150,10 +152,12 @@ class RecReceiver(QThread):
         while self.running:
             try:
                 data = self.sock.recv(1024).decode()
+                action, status = data.split(":")
+                self.status = status
                 
-                if data == "REC_ON":
+                if action == "REC_ON":
                     self.rec_signal.emit(True)
-                elif data == "REC_OFF":
+                elif action == "REC_OFF":
                      self.rec_signal.emit(False)
                 else:
                     print("올바르지 않은 명령어입니다.")
@@ -224,7 +228,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
             self.recordingStop()
 
     def recordingStart(self):
-        self.now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.now = status + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
         file_name = self.now + ".mp4"
         self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 

@@ -302,7 +302,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
     if status != "normal" and status != "None":
         emergency_mode = True
         client_socket.send(stop_action.encode('utf-8'))
-        rec_command_sender("REC_ON")
+        rec_command_sender("REC_ON:" + status)
         print("emergency STOP")
         print("녹화시작")
         
@@ -312,7 +312,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
         else:
             client_socket.send(prev_action.encode('utf-8'))
 
-        rec_command_sender("REC_OFF")
+        rec_command_sender("REC_OFF:" + status)
         emergency_mode = False
 
 
