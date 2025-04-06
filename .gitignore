@@ -11,5 +11,6 @@
 *.MOV
 *.avi
 *.m4a
+*.wav
 
 __pycache__
