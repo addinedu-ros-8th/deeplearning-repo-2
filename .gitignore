@@ -10,5 +10,6 @@
 *.mov
 *.MOV
 *.avi
+*.m4a
 
 __pycache__
