@@ -140,16 +140,26 @@ class RecReceiver(QThread):
 
     def __init__(self):
         super().__init__()
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.settimeout(1.0)
         self.sock.bind((REC_IP, REC_PORT))
+        self.sock.listen(3)
         self.running = True
+        self.conn = None
 
     def run(self):
+        print("📡 TCP 서버 대기 중...")
+        self.conn, addr = self.sock.accept()
+        print(f"✅ 클라이언트 연결됨: {addr}")
+
         while self.running:
             try:
-                data = self.sock.recv(1024).decode()
+                data = self.conn.recv(1024).decode()
+
+                if not data:
+                    break
+
                 action, status = data.split(":")
                 
                 if action == "REC_ON":
@@ -163,6 +173,15 @@ class RecReceiver(QThread):
             except Exception as e:
                 print(f"Receiver error: {e}")
                 break
+
+        self.conn.close()
+
+    def sendtoFilename(self, file_name):
+        try:
+            self.conn.send(file_name.encode("utf-8"))
+            print(f"📨 파일명 전송 완료: {file_name}")
+        except Exception as e:
+            print(f"❌ 파일명 전송 실패: {e}")
 
     def stop(self):
         self.running = False
@@ -197,10 +216,12 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.record_thread = RecReceiver()
         self.record_thread.rec_signal.connect(self.handle_recording)
         self.record_thread.start()
+        
         self.is_recording = False
         self.frame = None
         self.writer = None
         self.status = None
+        self.file_name = None
 
         self.manual_btn.clicked.connect(self.manual_mode)
         self.patrol_btn.clicked.connect(self.patrol_mode)
@@ -318,6 +339,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                 self.writer = None
                 return
 
+            self.file_name = file_name
             self.is_recording = True
         except Exception as e:
             print(f"❌ 녹화 시작 중 오류 발생: {e}")
@@ -326,6 +348,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.is_recording = False
         if self.writer:
             self.writer.release()
+            self.record_thread.sendtoFilename(self.file_name)
             self.writer = None
 
     def update_frame(self, frame):
