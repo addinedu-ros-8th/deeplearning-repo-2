@@ -2,7 +2,7 @@ import sys
 import socket
 import cv2
 import numpy as np
-from PyQt5 import QtWidgets, uic
+from PyQt5 import QtWidgets, QtCore, QtGui, uic
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from log_gui import LogGUI
@@ -20,7 +20,7 @@ LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
 # UDP 설정
 UDP_IP = os.environ.get("ADMIN_IP")
 UDP_PORT = int(os.environ.get("MAIN_PORT"))
-BUFFER_SIZE = os.environ.get("BUFFER_SIZE")
+BUFFER_SIZE = 65536
 
 HOST = os.environ.get("MYSQL_HOST")
 USER = os.environ.get("MYSQL_USER")
@@ -28,10 +28,23 @@ PASSWD = os.environ.get("MYSQL_PASSWD")
 DB_NAME = os.environ.get("DB_NAME")
 
 # Voice TCP 설정
-TCP_IP = os.environ.get("TCP_IP")
-TCP_PORT = os.environ.get("TCP_PORT")
+TCP_IP = '172.24.125.150'
+TCP_PORT = 6001
 
-video_save_dir = "/Users/wjsong/dev_ws/deeplearning-repo-2/src/admin_pc/video_out/"
+REC_IP = '172.24.125.36'
+REC_PORT = 5001
+
+video_save_dir = os.environ.get("VIDEO_SAVE_DIR")
+
+KEY_MAPPING = {
+    "W": "FORWARD",
+    "A": "LEFT_MOVE",
+    "D": "RIGHT_MOVE",
+    "S": "STOP",
+    "Q": "LEFT_TURN",
+    "E": "RIGHT_TURN",
+    "X": "BACKWARD"
+}
 
 command_dict = {
                     "전진": "FORWARD", 
@@ -42,9 +55,6 @@ command_dict = {
                     "우회전": "RIGHT_TURN",
                     "정지": "STOP"
                 }
-
-REC_IP = os.environ.get("MAIN_IP")
-REC_PORT = os.environ.get("TCP_PORT")
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -129,6 +139,12 @@ class CommandSender(QThread):
             except sr.RequestError as e:
                 print(f"음성 인식 서비스 오류 발생: {e}")
 
+    def sender(self, command):
+        if self.tcp_sock:
+            self.tcp_sock.send(command.encode('utf-8'))
+        else:
+            print("⚠️ TCP 소켓이 연결되어 있지 않습니다.")
+
     def stop(self):
         self.running = False
         self.quit()
@@ -143,19 +159,18 @@ class RecReceiver(QThread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.settimeout(1.0)
-        self.sock.bind((REC_IP, REC_PORT))
-        self.sock.listen(3)
+        try:
+            self.sock.connect((REC_IP, REC_PORT))
+            print(f"TCP 연결 성공: {REC_IP}:{REC_PORT}")
+        except socket.error as e:
+            print(f"TCP 연결 실패: {e}")
+            self.sock = None
         self.running = True
-        self.conn = None
 
     def run(self):
-        print("📡 TCP 서버 대기 중...")
-        self.conn, addr = self.sock.accept()
-        print(f"✅ 클라이언트 연결됨: {addr}")
-
         while self.running:
             try:
-                data = self.conn.recv(1024).decode()
+                data = self.sock.recv(1024).decode()
 
                 if not data:
                     break
@@ -174,11 +189,11 @@ class RecReceiver(QThread):
                 print(f"Receiver error: {e}")
                 break
 
-        self.conn.close()
+        self.sock.close()
 
     def sendtoFilename(self, file_name):
         try:
-            self.conn.send(file_name.encode("utf-8"))
+            self.sock.send(file_name.encode("utf-8"))
             print(f"📨 파일명 전송 완료: {file_name}")
         except Exception as e:
             print(f"❌ 파일명 전송 실패: {e}")
@@ -203,10 +218,17 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         )
 
         self.waiting.setChecked(True)
+        self.waiting.setFocusPolicy(Qt.NoFocus)
+        self.patrol.setFocusPolicy(Qt.NoFocus)
+        self.manual.setFocusPolicy(Qt.NoFocus)
+        self.manual_btn.setFocusPolicy(Qt.NoFocus)
+        self.patrol_btn.setFocusPolicy(Qt.NoFocus)
+        self.log_btn.setFocusPolicy(Qt.NoFocus)
+
         self.waiting.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.patrol.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.manual.setAttribute(Qt.WA_TransparentForMouseEvents)
-
+        
         self.label.setStyleSheet("background-color: black;")
 
         self.video_thread = VideoReceiver()
@@ -238,6 +260,9 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.last_triggered_time = None  # ⛑️ 마지막으로 실행된 예약 시간
 
         self.command_thread = CommandSender()
+
+        self.label.setFocusPolicy(Qt.StrongFocus)
+        self.label.setFocus()
 
     def check_reservation(self):
         try:
@@ -339,7 +364,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                 self.writer = None
                 return
 
-            self.file_name = save_path + ":" + self.status
+            self.file_name = file_name
             self.is_recording = True
         except Exception as e:
             print(f"❌ 녹화 시작 중 오류 발생: {e}")
@@ -368,6 +393,38 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                 self.writer.write(frame)
             except Exception as e:
                 print(f"❌ 프레임 녹화 실패: {e}")
+
+    def keyPressEvent(self, event):
+        """키보드 이벤트 처리"""
+        key = event.key()
+
+        if key == QtCore.Qt.Key_Escape:
+            print("Exiting mode, switching to waiting mode.")
+            self.waiting.setChecked(True)
+            self.manual.setChecked(False)
+            self.patrol.setChecked(False)
+
+            self.manual_btn.setEnabled(True)
+            self.patrol_btn.setEnabled(True)
+            self.log_btn.setEnabled(True)
+
+            self.send_stop_yolo()
+            self.send_key_to_raspberry("STOP")  # 수동 정지 명령 추가
+            return
+
+        if self.patrol.isChecked():
+            return
+
+        if self.manual.isChecked():
+            key_name = QtGui.QKeySequence(key).toString()
+            self.process_key(key_name)
+
+    def process_key(self, key_name):
+        """입력 받은 키를 처리"""
+        print(f"Key pressed: {key_name}")
+        command = KEY_MAPPING.get(key_name.upper(), key_name)
+        self.label_3.setText(f"Pressed: {command}")
+        self.command_thread.sender(command)
 
 
     def manual_mode(self):
