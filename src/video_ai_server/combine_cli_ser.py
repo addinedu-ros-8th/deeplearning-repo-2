@@ -93,13 +93,16 @@ UDP_PORT1 = 6000   # 첫 번째 카메라 포트 (왼쪽)
 UDP_PORT2 = 7000   # 두 번째 카메라 포트 (오른쪽)
 MAX_PACKET_SIZE = 60000
 SERVER_HOST = '172.24.125.150'  # 명령 보낼 ip (메인서버쪽)
+#SERVER_HOST = "172.24.125.177"
 SERVER_PORT = 6001              # 명령 보낼 포트 (메인서버쪽)
 tcp_sock = None
 
-FORWARD_PORT = 5000  # Forward video data to admin GUI's port
-FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
+#FORWARD_PORT = 5000  # Forward video data to admin GUI's port
+#FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
+FORWARD_PORT = 6000  # Forward video data to admin GUI's port
+FORWARD_IP = "172.24.125.17"  # Forward video data to admin GUI
 
-REC_IP = "192.168.0.85"
+REC_IP = "172.24.125.177"
 REC_PORT = 5001
 
 
@@ -151,11 +154,15 @@ def receive_video(udp_port, cam_id):
 ############################################
 def forward_video(frame, forward_ip, forward_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 50000)
     try:
         # 프레임을 JPEG로 인코딩
-        _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
         frame_data = encoded_frame.tobytes()
 
+        sock.sendto(frame_data, (forward_ip, forward_port))
+
+        """
         # 패킷 크기 제한에 맞춰 분할 전송
         chunk_size = MAX_PACKET_SIZE - 100  # 헤더를 위한 여유 공간 확보
         total_size = len(frame_data)
@@ -164,10 +171,12 @@ def forward_video(frame, forward_ip, forward_port):
             header = f"CAM_FORWARD:{i//chunk_size}:{total_size}:".encode('utf-8')
             packet = header + chunk
             sock.sendto(packet, (forward_ip, forward_port))
+        """
     except Exception as e:
         print(f"Error forwarding video: {e}")
     finally:
         sock.close()
+
 
 
 ############################################
@@ -318,6 +327,7 @@ def rec_command_sender(rec_action):
 
     rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     rec_socket.connect((REC_IP, REC_PORT))
+    #rec_socket.connect((FORWARD_IP, FORWARD_PORT))
 
     if rec_action != prev_rec_action:
         rec_socket.send(rec_action.encode("utf-8"))
@@ -354,6 +364,11 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
 # 뎁스 추정 및 명령 생성
 ############################################
 def start_depth_action():
+    global no_detection_start_time
+    global previous_objects
+    global last_left_turn_time
+    global LEFT_TURN_COOLDOWN
+
     # 서버 소켓 설정 (to main server)
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print("서버 연결 대기중")
@@ -385,15 +400,15 @@ def start_depth_action():
     wls_filter.setSigmaColor(1.8)
 
     # YOLO 모델 로드
-    model = YOLO('../model/extin_per_fire.pt')
-    patrol_model = YOLO("/Users/wjsong/dev_ws/deeplearning-repo-2/src/admin_pc/best.pt")
+    model = YOLO('/home/mu/dev_ws/project_3/deeplearning-repo-2/src/video_ai_server/models/extin_per_fire.pt')
+    patrol_model = YOLO("/home/mu/dev_ws/project_3/deeplearning-repo-2/src/admin_pc/best.pt")
 
     # Mediapipe 모델 로드
     mp_pose = mp.solutions.pose
     poses = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
 
     # LSTM 모델 로드
-    model_path = "/Users/wjsong/dev_ws/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
+    model_path = "/home/mu/dev_ws/project_3/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
     lstm_model = LSTM().to(device)
     lstm_model.load_state_dict(torch.load(model_path, map_location=device))
     lstm_model.eval()
@@ -554,8 +569,8 @@ def start_depth_action():
                 client_socket.close()
 
         cv2.rectangle(Left_nice, (roi_x1, roi_y1), (roi_x2, roi_y2), (255, 0, 0), 2)
-        cv2.imshow("YOLO + Depth", Left_nice)
-        cv2.imshow("Filtered Depth", disp_color)
+        #cv2.imshow("YOLO + Depth", Left_nice)
+        #cv2.imshow("Filtered Depth", disp_color)
 
         if cv2.waitKey(1) & 0xFF == ord(' '):
             break
@@ -564,6 +579,9 @@ def start_depth_action():
     client_socket.close()
     print("클라이언트 소켓이 닫힘")
 
+if no_detection_start_time is not None:
+    if time.time() - no_detection_start_time > 3:
+        print("No detection for 3 seconds!")
 
 ############################################
 # main
