@@ -32,6 +32,7 @@ def connectLocal():
     )
     return local
 
+
 ##################################################
 # TCP소켓 연결받기
 ##################################################
@@ -60,14 +61,50 @@ def handle_client(conn, addr, role):
                         connections['GUI'].send(data)
 
             elif role == 'GUI':
-                if message in ['STOP', 'LEFT_MOVE', 'RIGHT_MOVE', 'REC_ON', 'REC_OFF']:
+                if message in ['STOP', 'LEFT_MOVE', 'RIGHT_MOVE', 'FORWARD', 'BACKWARD', 'LEFT_TURN', 'RIGHT_TURN']:
+                    print("from gui", message)
                     if 'RPI' in connections:
-                        connections['RPI'].send(data)
+                        connections['RPI'].send(data)                
                 else:
                     print(f"[DB] 파일명으로 저장: {message}")
                     insert_query = "INSERT INTO file_log (filename) VALUES (%s)"
                     cursor.execute(insert_query, (message,))
                     local.commit()
+
+                    ret = message.split(':')
+
+                    # eventId 매핑
+                    event_map = {
+                        'fire': 1,
+                        'fighting': 2,
+                        'lying': 3,
+                        'smoking': 4
+                    }
+
+                    event_type = ret[1].lower()
+                    event_id = event_map.get(event_type, None)
+
+                    if event_id is not None:
+                        insert_event_query = """
+                        INSERT INTO Event_Log (placeId, robotId, eventId, videoPath, createDate)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """
+
+                        cursor.execute(
+                            insert_event_query,
+                            (
+                                None,  # placeId = NULL
+                                1,     # robotId
+                                event_id,     # eventId
+                                ret[0],       # videoPath
+                                datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # createDate
+                            )
+                        )
+                        local.commit()
+                        print("[DB] Event_Log에 insert 완료")
+                    else:
+                        print(f"[DB] 알 수 없는 event type: {event_type}")
+
 
         except Exception as e:
             print(f"[!] {role} 처리 중 예외: {e}")
@@ -76,6 +113,7 @@ def handle_client(conn, addr, role):
     conn.close()
     cursor.close()
     local.close()
+
 
 ##################################################
 # MAIN
