@@ -52,15 +52,22 @@ def handle_client(conn, addr, role):
 
             message = data.decode().strip()
             print(f"[{role}] 수신: {message}")
-
+            
+            """
             if role == 'AI':
                 if message in ['STOP', 'LEFT_MOVE', 'RIGHT_MOVE']:
                     if 'RPI' in connections:
                         connections['RPI'].send(data)
-                elif message in ['REC_ON', 'REC_OFF']:
+                elif message in ['REC_ON:', 'REC_OFF:']:
                     if 'GUI' in connections:
                         connections['GUI'].send(data)
+            """
 
+            if role == 'AI':
+                if 'GUI' in connections:
+                    connections['GUI'].send(data)
+
+            
             elif role == 'GUI':
                 if message in ['STOP', 'LEFT_MOVE', 'RIGHT_MOVE', 'FORWARD', 'BACKWARD', 'LEFT_TURN', 'RIGHT_TURN']:
                     print("from gui", message)
@@ -130,17 +137,19 @@ if __name__ == "__main__":
 
     print("[*] 서버 시작됨. 연결 대기 중...")
 
-    # 1. AI 서버 연결
-    ai_conn, ai_addr = server_socket.accept()
-    connections['AI'] = ai_conn
-    threading.Thread(target=handle_client, args=(ai_conn, ai_addr, 'AI')).start()
-
-    # 2. GUI 연결
+    # 1. GUI 연결
     gui_conn, gui_addr = server_socket.accept()
     connections['GUI'] = gui_conn
     threading.Thread(target=handle_client, args=(gui_conn, gui_addr, 'GUI')).start()
 
+    # 2. AI 서버 연결
+    ai_conn, ai_addr = server_socket.accept()
+    connections['AI'] = ai_conn
+    threading.Thread(target=handle_client, args=(ai_conn, ai_addr, 'AI')).start()
+
+    """
     # 3. 라즈베리파이 연결
     rpi_conn, rpi_addr = server_socket.accept()
     connections['RPI'] = rpi_conn
     threading.Thread(target=handle_client, args=(rpi_conn, rpi_addr, 'RPI')).start()
+    """
