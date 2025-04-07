@@ -4,7 +4,8 @@ import subprocess
 import signal
 import os
 
-HOST = '127.0.0.1'
+#HOST = '172.24.125.17'
+HOST = '0.0.0.0'
 PORT = 9000
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -24,7 +25,7 @@ while True:
     if data == "START_YOLO":
         if yolo_process is None or yolo_process.poll() is not None:
             print(">> YOLO 실행")
-            yolo_process = subprocess.Popen(["python3", "/home/shim/dev_ws/gui/sign_direction4.py"])
+            yolo_process = subprocess.Popen(["python3", "/home/mu/dev_ws/project_3/deeplearning-repo-2/src/video_ai_server/combine_cli_ser.py"])
             conn.sendall("YOLO_STARTED".encode())
         else:
             conn.sendall("YOLO_ALREADY_RUNNING".encode())
@@ -43,4 +44,3 @@ while True:
         conn.sendall("UNKNOWN_COMMAND".encode())
 
     conn.close()
-
