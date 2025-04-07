@@ -110,8 +110,11 @@ REC_PORT = 5001
 # 이전 상태 저장 변수
 previous_objects = set()
 no_detection_start_time = None  # 감지 안 되는 상태 시작 시간
-last_left_turn_time = 0  # 마지막 LEFT_TURN 감지 시간
-LEFT_TURN_COOLDOWN = 2  # LEFT_TURN 쿨타임 (초)
+left_turn_active = False
+left_turn_start_time = 0
+LEFT_TURN_DURATION = 2
+last_left_turn_time = 0
+LEFT_TURN_COOLDOWN = 2
 
 
 ############################################
@@ -364,6 +367,9 @@ def handle_emergency(client_socket, stop_action, prev_action, status, sock):
 def start_depth_action():
     global no_detection_start_time
     global previous_objects
+    global left_turn_active
+    global left_turn_start_time
+    global LEFT_TURN_DURATION
     global last_left_turn_time
     global LEFT_TURN_COOLDOWN
 
@@ -457,6 +463,59 @@ def start_depth_action():
 
         threading.Thread(target=handle_emergency, args=(client_socket, stop_action, prev_action, status, rec_socket), daemon=True).start()
 
+        # YOLO 감지 실행
+        results = patrol_model(Left_nice)
+        detected_objects = set()
+        current_time = time.time()
+
+        for result in results:
+            keep_indices = result.boxes.conf >= 0.9
+            result.boxes = result.boxes[keep_indices]
+
+            for i in result.boxes.cls.tolist():
+                obj_name = result.names[i]
+                if obj_name == "Stop":
+                    obj_name = "STOP"
+                    print("[YOLO] STOP 감지됨. 프로그램 종료.")
+                    client_socket.sendall("STOP".encode())  # 필요 시 STOP 전송
+                    client_socket.close()
+                    sys.exit()  # 프로그램 종료
+
+                elif obj_name == "Left hand curve":
+                    obj_name = "LEFT_TURN"
+
+                    # 쿨타임 중이면 무시
+                    if left_turn_active or (current_time - last_left_turn_time < LEFT_TURN_COOLDOWN):
+                        continue
+
+                    # 쿨타임 끝났으면 활성화
+                    last_left_turn_time = current_time
+                    left_turn_active = True
+                    left_turn_start_time = current_time
+
+                detected_objects.add(obj_name)
+
+        # 감지된 객체가 없을 경우 1.5초 동안 유지 확인 후 FORWARD 설정
+        if not detected_objects:
+            if no_detection_start_time is None:
+                no_detection_start_time = current_time
+            elif current_time - no_detection_start_time >= 2:
+                detected_objects.add("FORWARD")
+        else:
+            no_detection_start_time = None
+
+        # 상태 변경 여부 확인
+        if detected_objects != previous_objects:
+            print(f"[YOLO] 상태 변경 감지: {detected_objects}")
+            try:
+                data_to_send = ", ".join(detected_objects)
+                client_socket.sendall(data_to_send.encode())
+                print(f"[TCP] 데이터 전송: {data_to_send}")
+                previous_objects = detected_objects
+            except Exception as e:
+                print(f"[TCP] 전송 오류: {e}")
+                client_socket.close()
+
         results = model.track(Left_nice, conf=0.6, persist=True, verbose=False)
         boxes = results[0].boxes if len(results) > 0 else []
 
@@ -498,7 +557,13 @@ def start_depth_action():
                 threats.append((distance, cx, track_id))
 
         if not emergency_mode:
-            if threats:
+            if left_turn_active:
+                if current_time - left_turn_start_time <= LEFT_TURN_DURATION:
+                    current_action = "LEFT_TURN"
+                else:
+                    left_turn_active = False
+                    current_action = "FORWARD"
+            elif threats:
                 threats.sort()
                 _, cx, track_id = threats[0]
                 current_action = 'RIGHT_MOVE' if cx < roi_center else 'LEFT_MOVE'
@@ -522,54 +587,6 @@ def start_depth_action():
             filteredImg = cv2.addWeighted(filteredImg, alpha, filteredImg_prev, 1 - alpha, 0)
         filteredImg_prev = filteredImg.copy()
         disp_color = cv2.applyColorMap(filteredImg, cv2.COLORMAP_OCEAN)
-
-        # YOLO 감지 실행
-        results = patrol_model(Left_nice)
-        detected_objects = set()
-        current_time = time.time()
-
-        for result in results:
-            keep_indices = result.boxes.conf >= 0.9
-            result.boxes = result.boxes[keep_indices]
-
-            for i in result.boxes.cls.tolist():
-                obj_name = result.names[i]
-                if obj_name == "Stop":
-                    obj_name = "STOP"
-                    print("[YOLO] STOP 감지됨. 프로그램 종료.")
-                    client_socket.sendall("STOP".encode())  # 필요 시 STOP 전송
-                    client_socket.close()
-                    sys.exit()  # 프로그램 종료
-
-                elif obj_name == "Left hand curve":
-                    obj_name = "LEFT_TURN"
-                    # 쿨타임 검사
-                    if current_time - last_left_turn_time < LEFT_TURN_COOLDOWN:
-                        continue  # 무시
-                    last_left_turn_time = current_time
-
-                detected_objects.add(obj_name)
-
-        # 감지된 객체가 없을 경우 1.5초 동안 유지 확인 후 FORWARD 설정
-        if not detected_objects:
-            if no_detection_start_time is None:
-                no_detection_start_time = current_time
-            elif current_time - no_detection_start_time >= 2:
-                detected_objects.add("FORWARD")
-        else:
-            no_detection_start_time = None
-
-        # 상태 변경 여부 확인
-        if detected_objects != previous_objects:
-            print(f"[YOLO] 상태 변경 감지: {detected_objects}")
-            try:
-                data_to_send = ", ".join(detected_objects)
-                client_socket.sendall(data_to_send.encode())
-                print(f"[TCP] 데이터 전송: {data_to_send}")
-                previous_objects = detected_objects
-            except Exception as e:
-                print(f"[TCP] 전송 오류: {e}")
-                client_socket.close()
 
         cv2.rectangle(Left_nice, (roi_x1, roi_y1), (roi_x2, roi_y2), (255, 0, 0), 2)
         #cv2.imshow("YOLO + Depth", Left_nice)

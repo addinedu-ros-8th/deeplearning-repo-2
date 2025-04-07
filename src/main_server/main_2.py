@@ -65,11 +65,6 @@ def handle_client(conn, addr, role):
                     if 'RPI' in connections:
                         connections['RPI'].send(data)                
                 else:
-                    print(f"[DB] 파일명으로 저장: {message}")
-                    insert_query = "INSERT INTO file_log (filename) VALUES (%s)"
-                    cursor.execute(insert_query, (message,))
-                    local.commit()
-
                     ret = message.split(':')
 
                     # eventId 매핑
