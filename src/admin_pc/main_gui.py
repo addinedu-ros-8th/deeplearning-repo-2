@@ -225,8 +225,13 @@ class LocalServerSender(QThread):
         self.running = True
 
     def sender(self, yolo_flag):
+        print(f"[DEBUG] YOLO Flag 전송 요청: {yolo_flag}")
         if self.tcp2_sock:
-            self.tcp2_sock.send(yolo_flag.encode('utf-8'))
+            try:
+                self.tcp2_sock.send(yolo_flag.encode('utf-8'))
+                print(f"[DEBUG] 전송 완료: {yolo_flag}")
+            except Exception as e:
+                print(f"[ERROR] 전송 실패: {e}")
         else:
             print("⚠️ TCP 소켓이 연결되어 있지 않습니다.")
 
@@ -234,7 +239,7 @@ class LocalServerSender(QThread):
         self.running = False
         self.quit()
         self.wait()
-        self.tcp_sock.close()
+        self.tcp2_sock.close()
 
 
 class MainGUI(QtWidgets.QDialog, Ui_Dialog):
@@ -429,6 +434,10 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
             except Exception as e:
                 print(f"❌ 프레임 녹화 실패: {e}")
 
+    def send_stop_yolo(self):
+        """YOLO 종료 명령 전송"""
+        self.local_thread.sender("STOP_YOLO")
+
     def keyPressEvent(self, event):
         """키보드 이벤트 처리"""
         key = event.key()
@@ -471,7 +480,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         if not self.command_thread.isRunning():
             self.command_thread.start()
 
-        self.local_thread.sender("YOLO_STOP")
+        self.local_thread.sender("STOP_YOLO")
 
 
     def patrol_mode(self):
@@ -483,13 +492,15 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.patrol.setChecked(True)
         self.manual_btn.setDisabled(False)
         self.patrol_btn.setDisabled(True)
-        self.enable_mode_buttons()
-        self.local_thread.sender("YOLO_START")
 
-    def enable_mode_buttons(self):
         self.waiting.setChecked(True)
         self.manual_btn.setEnabled(True)
-        self.patrol_btn.setEnabled(True)
+        self.patrol_btn.setEnabled(False)
+
+        if self.command_thread.isRunning():
+            self.command_thread.stop()
+
+        self.local_thread.sender("START_YOLO")
 
     def restart_video_thread_and_show(self):
         if self.video_thread.isRunning():
