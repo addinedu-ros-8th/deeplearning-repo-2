@@ -20,7 +20,7 @@ LOG_GUI = os.environ.get("PATH_TO_LOG_GUI")
 # UDP 설정
 UDP_IP = os.environ.get("ADMIN_IP")
 UDP_PORT = int(os.environ.get("MAIN_PORT"))
-BUFFER_SIZE = 65536
+BUFFER_SIZE = os.environ.get("BUFFER_SIZE")
 
 HOST = os.environ.get("MYSQL_HOST")
 USER = os.environ.get("MYSQL_USER")
@@ -28,8 +28,8 @@ PASSWD = os.environ.get("MYSQL_PASSWD")
 DB_NAME = os.environ.get("DB_NAME")
 
 # Voice TCP 설정
-TCP_IP = '192.168.28.150'
-TCP_PORT = 6001
+TCP_IP = os.environ.get("TCP_IP")
+TCP_PORT = os.environ.get("TCP_PORT")
 
 video_save_dir = "/Users/wjsong/dev_ws/deeplearning-repo-2/src/admin_pc/video_out/"
 
@@ -43,8 +43,8 @@ command_dict = {
                     "정지": "STOP"
                 }
 
-REC_IP = "0.0.0.0"
-REC_PORT = 6001
+REC_IP = os.environ.get("MAIN_IP")
+REC_PORT = os.environ.get("TCP_PORT")
 
 # UI 파일 로드
 ui_file = MAIN_GUI
@@ -339,7 +339,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                 self.writer = None
                 return
 
-            self.file_name = file_name
+            self.file_name = save_path + ":" + self.status
             self.is_recording = True
         except Exception as e:
             print(f"❌ 녹화 시작 중 오류 발생: {e}")

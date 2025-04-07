@@ -1,14 +1,23 @@
+import os
 import socket
 import threading
+from dotenv import load_dotenv
 import mysql.connector
+
+load_dotenv()
 
 ##################################################
 # 포트 설정
 ##################################################
-HOST = '0.0.0.0'
-MAIN_SERVER_PORT = 5001
+HOST = os.environ.get("MAIN_IP")
+MAIN_SERVER_PORT = os.environ.get("SUB_PORT")
 
 connections = {}
+
+DB_HOST = os.environ.get("MYSQL_HOST")
+DB_USER = os.environ.get("MYSQL_USER")
+DB_PASSWD = os.environ.get("MYSQL_PASSWD")
+DB_NAME = os.environ.get("DB_NAME")
 
 
 ##################################################
@@ -16,10 +25,10 @@ connections = {}
 ##################################################
 def connectLocal():
     local = mysql.connector.connect(
-        host = '192.168.0.141',
-        user = 'patrol',
-        password = 'qwer1234!',
-        database = 'Patroldb'
+        host = DB_HOST,
+        user = DB_USER,
+        password = DB_PASSWD,
+        database = DB_NAME
     )
     return local
 
