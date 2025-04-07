@@ -137,6 +137,30 @@ def receive_video(udp_port, cam_id):
 
 
 ############################################
+# UDP 전송 
+############################################
+def forward_video(frame, forward_ip, forward_port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # 프레임을 JPEG로 인코딩
+        _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        frame_data = encoded_frame.tobytes()
+
+        # 패킷 크기 제한에 맞춰 분할 전송
+        chunk_size = MAX_PACKET_SIZE - 100  # 헤더를 위한 여유 공간 확보
+        total_size = len(frame_data)
+        for i in range(0, total_size, chunk_size):
+            chunk = frame_data[i:i + chunk_size]
+            header = f"CAM_FORWARD:{i//chunk_size}:{total_size}:".encode('utf-8')
+            packet = header + chunk
+            sock.sendto(packet, (forward_ip, forward_port))
+    except Exception as e:
+        print(f"Error forwarding video: {e}")
+    finally:
+        sock.close()
+
+
+############################################
 # 행동분석 함수
 ############################################
 def motionPrediction(image, poses, yolo_model, lstm_model):
@@ -321,7 +345,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
 ############################################
 def start_depth_action():
     # 서버 소켓 설정 (to main server)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)s
     print("서버 연결 대기중")
     client_socket.connect((SERVER_HOST, SERVER_PORT))
     print(f"서버 {SERVER_HOST}:{SERVER_PORT}에 연결완료")
@@ -334,7 +358,7 @@ def start_depth_action():
     # 스테레오 매칭 설정
     window_size = 3
     min_disp = 2
-    num_disp = 64  # 640의 약수로 설정
+    num_disp = 64
     stereo = cv2.StereoSGBM_create(minDisparity=min_disp,
                                    numDisparities=num_disp,
                                    blockSize=window_size,
@@ -346,15 +370,14 @@ def start_depth_action():
                                    P2=32*3*window_size**2)
     stereoR = cv2.ximgproc.createRightMatcher(stereo)
 
-    # wls 필터 적용 
     wls_filter = cv2.ximgproc.createDisparityWLSFilter(matcher_left=stereo)
     wls_filter.setLambda(80000)
     wls_filter.setSigmaColor(1.8)
 
-    # YOLO 모델 로드(사람 + 소화기 + 불)
+    # YOLO 모델 로드
     model = YOLO('../model/extin_per_fire.pt')
 
-    # mediapipe 모델 로드
+    # Mediapipe 모델 로드
     mp_pose = mp.solutions.pose
     poses = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
 
@@ -365,8 +388,8 @@ def start_depth_action():
     lstm_model.eval()
 
     # 스레드 시작
-    thread1 = threading.Thread(target = receive_video, args = (UDP_PORT1, "CAM1"), daemon = True)
-    thread2 = threading.Thread(target = receive_video, args = (UDP_PORT2, "CAM2"), daemon = True)
+    thread1 = threading.Thread(target=receive_video, args=(UDP_PORT1, "CAM1"), daemon=True)
+    thread2 = threading.Thread(target=receive_video, args=(UDP_PORT2, "CAM2"), daemon=True)
     thread1.start()
     thread2.start()
 
@@ -379,17 +402,17 @@ def start_depth_action():
 
     while True:
         with lock:
-            frameL = frames["CAM1"]  # 좌측 카메라
-            frameR = frames["CAM2"]  # 우측 카메라
+            frameL = frames["CAM1"]
+            frameR = frames["CAM2"]
         if frameL is None or frameR is None:
             if frameL is None:
-                print("None L frame", end = ' ')
+                print("None L frame", end=' ')
             if frameR is None:
-                print("None R frame", end = ' ')   
+                print("None R frame", end=' ')
             print()
-            continue  # 프레임이 준비되지 않았으면 건너뜀
+            continue
 
-        # 보정진행 및 remap
+        # 보정 및 remap
         Left_nice = cv2.remap(frameL, Left_Stereo_Map[0], Left_Stereo_Map[1], cv2.INTER_LANCZOS4)
         Right_nice = cv2.remap(frameR, Right_Stereo_Map[0], Right_Stereo_Map[1], cv2.INTER_LANCZOS4)
 
@@ -403,9 +426,9 @@ def start_depth_action():
         status = motionPrediction(Left_nice, poses, model, lstm_model)
         cv2.putText(Left_nice, status, (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 0, 0), 2)
 
-        threading.Thread(target = handle_emergency, args =(client_socket, stop_action, prev_action, status), daemon = True).start() 
+        threading.Thread(target=handle_emergency, args=(client_socket, stop_action, prev_action, status), daemon=True).start()
 
-        results = model.track(Left_nice, conf = 0.6, persist = True, verbose = False)
+        results = model.track(Left_nice, conf=0.6, persist=True, verbose=False)
         boxes = results[0].boxes if len(results) > 0 else []
 
         threats = []
@@ -414,40 +437,33 @@ def start_depth_action():
             if track_id is None:
                 continue
 
-            # 클래스명 가져오기
             class_id = int(box.cls[0])
-            class_name = model.names[class_id] 
+            class_name = model.names[class_id]
 
-            # 좌표계산
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             cx = (x1 + x2) // 2
             cy = (y1 + y2) // 2
 
-            # 객체중심 시차 0이하 오류값 제거
             region = disp_map[cy - 2:cy + 3, cx - 2:cx + 3]
             vals = region[region > 0]
             if vals.size == 0:
                 continue
 
-            # 시차 이상치 제거
             p_low, p_high = np.percentile(vals, [10, 90])
             vals_filtered = vals[(vals >= p_low) & (vals <= p_high)]
             if vals_filtered.size == 0:
                 continue
 
-            # 사이즈 내 평균시차, 초점거리, 베이스라인으로 distance 계산 
             avg_disp = np.mean(vals_filtered)
             distance = compute_depth_physical(avg_disp, focal_length_px, baseline_m)
-            
+
             if distance <= 0:
                 continue
 
-            # 객체 id 및 distance 출력
             label = f"ID:{int(track_id)} {float(distance):.2f}m"
-            cv2.rectangle(Left_nice, (x1, y1), (x2, y2), (0,255,0), 2)
-            cv2.putText(Left_nice, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)           
+            cv2.rectangle(Left_nice, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(Left_nice, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-            # roi 범위확인
             in_roi = (x1 < roi_x2 and x2 > roi_x1 and y1 < roi_y2 and y2 > roi_y1)
             if in_roi and distance <= 100.0:
                 threats.append((distance, cx, track_id))
@@ -460,26 +476,28 @@ def start_depth_action():
             else:
                 current_action = 'FORWARD'
 
-            # 비상상황 아니고 이전명령 변경되었을 경우
             if prev_action != current_action:
                 print(f"Action: {current_action}")
                 prev_action = current_action
                 client_socket.send(current_action.encode('utf-8'))
-    
+
+        # UDP Left_nice 프레임 전송
+        threading.Thread(target=forward_video, args=(Left_nice, FORWARD_IP, FORWARD_PORT), daemon=True).start()
+
         filteredImg = np.clip(filtered, 0, num_disp * 16).astype(np.float32)
         filteredImg = (filteredImg / (num_disp * 16)) * 255.0
         filteredImg = np.uint8(filteredImg)
-    
+
         alpha = 0.6
         if filteredImg_prev is not None:
             filteredImg = cv2.addWeighted(filteredImg, alpha, filteredImg_prev, 1 - alpha, 0)
         filteredImg_prev = filteredImg.copy()
         disp_color = cv2.applyColorMap(filteredImg, cv2.COLORMAP_OCEAN)
-    
+
         cv2.rectangle(Left_nice, (roi_x1, roi_y1), (roi_x2, roi_y2), (255, 0, 0), 2)
         cv2.imshow("YOLO + Depth", Left_nice)
         cv2.imshow("Filtered Depth", disp_color)
-    
+
         if cv2.waitKey(1) & 0xFF == ord(' '):
             break
 
