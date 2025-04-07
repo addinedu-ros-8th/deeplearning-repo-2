@@ -322,31 +322,29 @@ def load_calibration():
 ############################################
 # 녹화 관련 통신
 ############################################
-def rec_command_sender(rec_action):
+def rec_command_sender(rec_action, rec_socket):
     global prev_rec_action
 
-    rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    rec_socket.connect((REC_IP, REC_PORT))
-    #rec_socket.connect((FORWARD_IP, FORWARD_PORT))
+    #rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #rec_socket.connect((REC_IP, REC_PORT))
 
     if rec_action != prev_rec_action:
         rec_socket.send(rec_action.encode("utf-8"))
         prev_rec_action = rec_action
 
-    rec_socket.close()
-
+    #rec_socket.close()
 
 
 ############################################
 # 비상 처리
 ############################################
-def handle_emergency(client_socket, stop_action, prev_action, status):
+def handle_emergency(client_socket, stop_action, prev_action, status, sock):
     global emergency_mode    
 
     if status != "normal" and status != "None":
         emergency_mode = True
         client_socket.send(stop_action.encode('utf-8'))
-        rec_command_sender("REC_ON:" + status)
+        rec_command_sender("REC_ON:" + status, sock)
         print("emergency STOP")
         print("녹화시작")
         
@@ -356,7 +354,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
         else:
             client_socket.send(prev_action.encode('utf-8'))
 
-        rec_command_sender("REC_OFF:" + status)
+        rec_command_sender("REC_OFF:" + status, sock)
         emergency_mode = False
 
 
@@ -426,6 +424,11 @@ def start_depth_action():
     filteredImg_prev, prev_action, current_action = None, None, None
     stop_action = "STOP"
 
+    # 메인 서버로
+    rec_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    rec_socket.connect((REC_IP, REC_PORT))
+
+
     while True:
         with lock:
             frameL = frames["CAM1"]
@@ -452,7 +455,7 @@ def start_depth_action():
         status = motionPrediction(Left_nice, poses, model, lstm_model)
         cv2.putText(Left_nice, status, (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 0, 0), 2)
 
-        threading.Thread(target=handle_emergency, args=(client_socket, stop_action, prev_action, status), daemon=True).start()
+        threading.Thread(target=handle_emergency, args=(client_socket, stop_action, prev_action, status, rec_socket), daemon=True).start()
 
         results = model.track(Left_nice, conf=0.6, persist=True, verbose=False)
         boxes = results[0].boxes if len(results) > 0 else []
@@ -578,6 +581,9 @@ def start_depth_action():
     cv2.destroyAllWindows()
     client_socket.close()
     print("클라이언트 소켓이 닫힘")
+
+    # 소켓 닫기
+    rec_socket.close()
 
 if no_detection_start_time is not None:
     if time.time() - no_detection_start_time > 3:
