@@ -364,7 +364,7 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
                 self.writer = None
                 return
 
-            self.file_name = file_name
+            self.file_name = save_path + ":" + self.status
             self.is_recording = True
         except Exception as e:
             print(f"❌ 녹화 시작 중 오류 발생: {e}")
