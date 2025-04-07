@@ -31,8 +31,11 @@ DB_NAME = os.environ.get("DB_NAME")
 TCP_IP = '172.24.125.150'
 TCP_PORT = 6001
 
-REC_IP = '172.24.125.36'
+REC_IP = '172.24.125.177'
 REC_PORT = 5001
+
+LOCAL_IP = '172.24.125.36'
+LOCAL_PORT = 9000
 
 video_save_dir = os.environ.get("VIDEO_SAVE_DIR")
 
@@ -205,6 +208,35 @@ class RecReceiver(QThread):
         self.sock.close()
 
 
+class LocalServerSender(QThread):
+
+    def __init__(self):
+        super().__init__()
+        self.tcp2_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp2_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.tcp2_sock.settimeout(1.0)
+        try:
+            self.tcp2_sock.connect((LOCAL_IP, LOCAL_PORT))
+            print(f"TCP 연결 성공: {LOCAL_IP}:{LOCAL_PORT}")
+        except socket.error as e:
+            print(f"TCP 연결 실패: {e}")
+            self.tcp2_sock = None
+
+        self.running = True
+
+    def sender(self, yolo_flag):
+        if self.tcp2_sock:
+            self.tcp2_sock.send(yolo_flag.encode('utf-8'))
+        else:
+            print("⚠️ TCP 소켓이 연결되어 있지 않습니다.")
+
+    def stop(self):
+        self.running = False
+        self.quit()
+        self.wait()
+        self.tcp_sock.close()
+
+
 class MainGUI(QtWidgets.QDialog, Ui_Dialog):
     global status
     def __init__(self):
@@ -238,6 +270,9 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.record_thread = RecReceiver()
         self.record_thread.rec_signal.connect(self.handle_recording)
         self.record_thread.start()
+
+        self.local_thread = LocalServerSender()
+        self.local_thread.start()
         
         self.is_recording = False
         self.frame = None
@@ -436,6 +471,8 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         if not self.command_thread.isRunning():
             self.command_thread.start()
 
+        self.local_thread.sender("YOLO_STOP")
+
 
     def patrol_mode(self):
         print("Patrol Mode Activated")
@@ -446,7 +483,8 @@ class MainGUI(QtWidgets.QDialog, Ui_Dialog):
         self.patrol.setChecked(True)
         self.manual_btn.setDisabled(False)
         self.patrol_btn.setDisabled(True)
-        QTimer.singleShot(3000, self.enable_mode_buttons)
+        self.enable_mode_buttons()
+        self.local_thread.sender("YOLO_START")
 
     def enable_mode_buttons(self):
         self.waiting.setChecked(True)

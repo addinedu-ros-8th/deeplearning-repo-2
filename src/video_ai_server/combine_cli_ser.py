@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import platform
 import time
+import sys
 
 if platform.system() == "Darwin":
     print("your system is mac os")
@@ -93,12 +94,21 @@ UDP_PORT2 = 7000   # 두 번째 카메라 포트 (오른쪽)
 MAX_PACKET_SIZE = 60000
 SERVER_HOST = '172.24.125.150'  # 명령 보낼 ip (메인서버쪽)
 SERVER_PORT = 6001              # 명령 보낼 포트 (메인서버쪽)
+tcp_sock = None
 
 FORWARD_PORT = 5000  # Forward video data to admin GUI's port
 FORWARD_IP = "192.168.65.177"  # Forward video data to admin GUI
 
 REC_IP = "192.168.0.85"
 REC_PORT = 5001
+
+
+
+# 이전 상태 저장 변수
+previous_objects = set()
+no_detection_start_time = None  # 감지 안 되는 상태 시작 시간
+last_left_turn_time = 0  # 마지막 LEFT_TURN 감지 시간
+LEFT_TURN_COOLDOWN = 2  # LEFT_TURN 쿨타임 (초)
 
 
 ############################################
@@ -345,7 +355,7 @@ def handle_emergency(client_socket, stop_action, prev_action, status):
 ############################################
 def start_depth_action():
     # 서버 소켓 설정 (to main server)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)s
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print("서버 연결 대기중")
     client_socket.connect((SERVER_HOST, SERVER_PORT))
     print(f"서버 {SERVER_HOST}:{SERVER_PORT}에 연결완료")
@@ -376,13 +386,14 @@ def start_depth_action():
 
     # YOLO 모델 로드
     model = YOLO('../model/extin_per_fire.pt')
+    patrol_model = YOLO("/Users/wjsong/dev_ws/deeplearning-repo-2/src/admin_pc/best.pt")
 
     # Mediapipe 모델 로드
     mp_pose = mp.solutions.pose
     poses = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
 
     # LSTM 모델 로드
-    model_path = "/home/mu/dev_ws/project_3/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
+    model_path = "/Users/wjsong/dev_ws/deeplearning-repo-2/src/video_ai_server/models/lstm_model.pth"
     lstm_model = LSTM().to(device)
     lstm_model.load_state_dict(torch.load(model_path, map_location=device))
     lstm_model.eval()
@@ -493,6 +504,54 @@ def start_depth_action():
             filteredImg = cv2.addWeighted(filteredImg, alpha, filteredImg_prev, 1 - alpha, 0)
         filteredImg_prev = filteredImg.copy()
         disp_color = cv2.applyColorMap(filteredImg, cv2.COLORMAP_OCEAN)
+
+        # YOLO 감지 실행
+        results = patrol_model(Left_nice)
+        detected_objects = set()
+        current_time = time.time()
+
+        for result in results:
+            keep_indices = result.boxes.conf >= 0.9
+            result.boxes = result.boxes[keep_indices]
+
+            for i in result.boxes.cls.tolist():
+                obj_name = result.names[i]
+                if obj_name == "Stop":
+                    obj_name = "STOP"
+                    print("[YOLO] STOP 감지됨. 프로그램 종료.")
+                    client_socket.sendall("STOP".encode())  # 필요 시 STOP 전송
+                    client_socket.close()
+                    sys.exit()  # 프로그램 종료
+
+                elif obj_name == "Left hand curve":
+                    obj_name = "LEFT_TURN"
+                    # 쿨타임 검사
+                    if current_time - last_left_turn_time < LEFT_TURN_COOLDOWN:
+                        continue  # 무시
+                    last_left_turn_time = current_time
+
+                detected_objects.add(obj_name)
+
+        # 감지된 객체가 없을 경우 1.5초 동안 유지 확인 후 FORWARD 설정
+        if not detected_objects:
+            if no_detection_start_time is None:
+                no_detection_start_time = current_time
+            elif current_time - no_detection_start_time >= 2:
+                detected_objects.add("FORWARD")
+        else:
+            no_detection_start_time = None
+
+        # 상태 변경 여부 확인
+        if detected_objects != previous_objects:
+            print(f"[YOLO] 상태 변경 감지: {detected_objects}")
+            try:
+                data_to_send = ", ".join(detected_objects)
+                client_socket.sendall(data_to_send.encode())
+                print(f"[TCP] 데이터 전송: {data_to_send}")
+                previous_objects = detected_objects
+            except Exception as e:
+                print(f"[TCP] 전송 오류: {e}")
+                client_socket.close()
 
         cv2.rectangle(Left_nice, (roi_x1, roi_y1), (roi_x2, roi_y2), (255, 0, 0), 2)
         cv2.imshow("YOLO + Depth", Left_nice)
